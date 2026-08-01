@@ -1,0 +1,86 @@
+import { Card, Badge, ProgressBar } from '../ui'
+import DifficultyBadge from './DifficultyBadge'
+
+const CATEGORY_VARIANT = {
+  alphabet: 'primary',
+  word:     'neutral',
+  phrase:   'success',
+}
+
+const PROGRESS_VALUE = {
+  not_started: 0,
+  in_progress: 50,
+  completed:   100,
+}
+
+export default function LessonCard({ lesson, onClick }) {
+  const status        = lesson.user_progress_status || 'not_started'
+  const progressValue = PROGRESS_VALUE[status] ?? 0
+  const progressColor = status === 'completed' ? 'success' : 'primary'
+  const catVariant    = CATEGORY_VARIANT[lesson.category] || 'neutral'
+
+  return (
+    <div className="relative">
+      {/* Status badge (absolute, outside Card so no overflow clip) */}
+      {status === 'in_progress' && (
+        <Badge variant="warning" size="sm" className="absolute top-3 right-3 z-10">
+          In Progress
+        </Badge>
+      )}
+      {status === 'completed' && (
+        <Badge variant="success" size="sm" className="absolute top-3 right-3 z-10">
+          Completed ✓
+        </Badge>
+      )}
+
+      <Card hover onClick={onClick} className="flex flex-col h-full">
+        {/* Top row */}
+        <div className="flex justify-between items-start mb-3">
+          <Badge variant={catVariant} size="sm" className="capitalize">
+            {lesson.category}
+          </Badge>
+          <DifficultyBadge difficulty={lesson.difficulty} />
+        </div>
+
+        {/* Title */}
+        <h3
+          className="text-text-primary font-semibold mb-1"
+          style={{ fontSize: '1.05rem', lineHeight: 1.35 }}
+        >
+          {lesson.title}
+        </h3>
+
+        {/* Description */}
+        {lesson.description && (
+          <p
+            className="text-sm text-text-muted mb-4"
+            style={{
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+            }}
+          >
+            {lesson.description}
+          </p>
+        )}
+
+        {/* Spacer to push stats/bar to bottom */}
+        <div className="flex-1" />
+
+        {/* Stats row */}
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-sm text-text-muted">{lesson.sign_count} signs</span>
+          {lesson.sign_count != null && (
+            <span className="text-sm font-medium text-primary-light font-mono">
+              {lesson.sign_count * 10} XP
+            </span>
+          )}
+        </div>
+
+        {/* Progress bar */}
+        <ProgressBar value={progressValue} size="sm" color={progressColor} />
+      </Card>
+    </div>
+  )
+}
