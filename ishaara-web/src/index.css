@@ -325,3 +325,92 @@ body {
   from { transform: translateY(-16px); opacity: 0; }
   to   { transform: translateY(0);     opacity: 1; }
 }
+
+/* ─── Score Overlay Animations ───────────────────────────────────────────── */
+@keyframes scoreCardIn {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(15px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.25s ease-out forwards;
+}
+
+/* ─── Live Hint Styles ───────────────────────────────────────────────────── */
+.hint-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+.hint-green  { background: #d1fae5; color: #065f46; }
+.hint-amber  { background: #fef3c7; color: #92400e; }
+.hint-red    { background: #fee2e2; color: #991b1b; }
+.hint-pulse  { animation: hintPulse 1.5s ease-in-out infinite; }
+.hint-icon::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+@keyframes hintPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@keyframes feedbackTipIn {
+  from { transform: translateY(-8px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.animate-feedback-tip {
+  animation: feedbackTipIn 300ms ease-out forwards;
+}
+
+/* ─── Sign Reference Pulse Ring ──────────────────────────────────────────── */
+@keyframes ringPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79,70,229,0.4); }
+  50%      { box-shadow: 0 0 0 10px rgba(79,70,229,0); }
+}
+.pulse-ring {
+  animation: ringPulse 1s ease-in-out 3;
+}
+
+/* ─── Toast Notifications ────────────────────────────────────────────────── */
+@keyframes toastIn {
+  from { transform: translateX(120px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+.animate-toast-in {
+  animation: toastIn 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+
+
+
+

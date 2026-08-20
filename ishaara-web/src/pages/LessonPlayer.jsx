@@ -1,44 +1,232 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, X } from 'lucide-react'
 import { Button, Modal, Spinner } from '../components/ui'
 import { useLesson } from '../api/lessons'
-import { useCompleteLesson } from '../api/progress'
+import { useCompleteLesson, useSubmitAttempt } from '../api/progress'
 import { useSessionStore } from '../store/sessionStore'
+import { useAuthStore } from '../store/authStore'
 import LessonProgress from '../components/lesson/LessonProgress'
-import SignCard from '../components/lesson/SignCard'
-import LessonComplete from '../components/lesson/LessonComplete'
 import WebcamPanel from '../components/webcam/WebcamPanel'
 import WebcamPermission from '../components/webcam/WebcamPermission'
 import ErrorBoundary from '../components/ui/ErrorBoundary'
+import client from '../api/client'
+
+// Feature 12 imports
+import { useSignScorer } from '../cv/useSignScorer'
+import ScoreMeter, { updateMeter } from '../components/webcam/ScoreMeter'
+import HoldRing, { updateRing } from '../components/webcam/HoldRing'
+import ScoreOverlay from '../components/webcam/ScoreOverlay'
+import { SCORE_THRESHOLD, SUCCESS_THRESHOLD, computeXP } from '../cv/scoring'
+import { initModel } from '../cv/onnxModel'
+import { landmarksToArray } from '../cv/normalize'
+
+// Feature 13 imports
+import LiveHint, { updateHint } from '../components/lesson/LiveHint'
+import FeedbackTip from '../components/lesson/FeedbackTip'
+import SignReference from '../components/lesson/SignReference'
+import LessonSummary from '../components/lesson/LessonSummary'
+import StreakNotification from '../components/lesson/StreakNotification'
+import BadgeNotification from '../components/lesson/BadgeNotification'
+import { useNotificationQueue } from '../utils/notificationQueue'
+import { getLiveHint, getPostAttemptTip } from '../cv/feedback'
 
 export default function LessonPlayer() {
   const { id }       = useParams()
   const navigate     = useNavigate()
   const queryClient  = useQueryClient()
   const sessionStore = useSessionStore()
+  const authStore    = useAuthStore()
+
+  const isStaff = authStore.user?.is_staff || false
 
   const { data: lesson, isLoading, isError } = useLesson(id)
   const completeLesson = useCompleteLesson()
+  const postAttempt    = useSubmitAttempt()
 
   const [showExitModal, setShowExitModal]   = useState(false)
-  // Holds API response once complete call resolves
   const [completeResult, setCompleteResult] = useState(null)
-  // Prevent duplicate API calls on re-renders
   const completeCalled = useRef(false)
 
   const videoReadyRef = useRef(null)
   const onVideoReady = (ref) => { videoReadyRef.current = ref.current }
 
-  // Scroll to top on mount
-  useEffect(() => { window.scrollTo(0, 0) }, [])
+  const signs       = sessionStore.signs
+  const signIndex   = sessionStore.signIndex
+  const currentSign = signs[signIndex] || null
+
+  // Feature 12 & 13 states & refs
+  const meterRef     = useRef(null)
+  const ringRef      = useRef(null)
+  const hintRef      = useRef(null)
+  const holdPercent  = useRef(0)
+  const latestRawRef = useRef(null)
+
+  const [overlayVisible, setOverlayVisible] = useState(false)
+  const [overlayData, setOverlayData]       = useState(null)
+  const [captureStatus, setCaptureStatus]   = useState(null)
+
+  // Feature 13 state & queue hooks
+  const [feedbackTip, setFeedbackTip]   = useState(null)
+  const [isPulsing, setIsPulsing]       = useState(false)
+  const [signResults, setSignResults]   = useState([])
+  const { current: notification, enqueue, dismiss } = useNotificationQueue()
+
+  // Direct DOM updates for performance (bypass React render loop at 30fps)
+  const handleScoreUpdate = useCallback((smoothed) => {
+    updateMeter(meterRef, smoothed)
+    const isHandDetected = latestRawRef.current !== null
+    const hint = getLiveHint(smoothed, isHandDetected)
+    updateHint(hintRef, hint)
+
+    const isHolding = smoothed >= SCORE_THRESHOLD
+    if (isHolding) {
+      holdPercent.current = Math.min(holdPercent.current + 3, 100)
+    } else {
+      holdPercent.current = 0
+    }
+    updateRing(ringRef, holdPercent.current, holdPercent.current >= 100)
+  }, [])
+
+  // Score ready handler
+  const handleScoreReady = useCallback(async (result) => {
+    const { score, is_success, rating } = result
+    const xpEarned = computeXP(score, currentSign?.xp_reward || 10)
+
+    let attemptResponse = null
+    try {
+      attemptResponse = await postAttempt.mutateAsync({
+        sign_id: currentSign.id,
+        score,
+        is_success
+      })
+    } catch (e) {
+      console.error('Attempt submit failed:', e)
+    }
+
+    // Set overlay
+    setOverlayData({ score, rating, xpEarned })
+    setOverlayVisible(true)
+    holdPercent.current = 0
+    updateRing(ringRef, 0, false)
+
+    // Set coaching tip feedback & visual pulsing
+    const tip = getPostAttemptTip(score)
+    setFeedbackTip(is_success ? null : tip)
+    setIsPulsing(!is_success)
+    setTimeout(() => setIsPulsing(false), 3000)
+
+    // Record result
+    setSignResults(prev => {
+      const idx = prev.findIndex(r => r.sign.id === currentSign.id)
+      if (idx >= 0) {
+        const updated = [...prev]
+        updated[idx] = {
+          ...updated[idx],
+          score: Math.max(updated[idx].score, score),
+          isSuccess: updated[idx].isSuccess || is_success,
+          attempts: updated[idx].attempts + 1
+        }
+        return updated
+      } else {
+        return [...prev, {
+          sign: currentSign,
+          score,
+          isSuccess: is_success,
+          attempts: 1
+        }]
+      }
+    })
+
+    // Handle notifications from attempt response
+    if (attemptResponse?.streak_updated) {
+      enqueue({
+        type: 'streak',
+        currentStreak: attemptResponse.current_streak
+      })
+    }
+    if (attemptResponse?.badges_earned?.length > 0) {
+      attemptResponse.badges_earned.forEach(badge => {
+        enqueue({ type: 'badge', badge })
+      })
+    }
+  }, [currentSign, postAttempt, enqueue])
+
+  // Initialize useSignScorer hook
+  const scorer = useSignScorer({
+    sign: currentSign,
+    onScoreReady: handleScoreReady,
+    onScoreUpdate: handleScoreUpdate
+  })
+
+  // Dismiss score overlay
+  const handleOverlayDismiss = useCallback(() => {
+    setOverlayVisible(false)
+    if (overlayData?.score >= SUCCESS_THRESHOLD) {
+      sessionStore.nextSign()
+      scorer.resetScorer()
+      setFeedbackTip(null)
+      setIsPulsing(false)
+    }
+  }, [overlayData, sessionStore, scorer])
+
+  // Skip handler
+  const handleSkip = () => {
+    scorer.resetScorer()
+    sessionStore.nextSign()
+    setFeedbackTip(null)
+    setIsPulsing(false)
+  }
+
+  // Capture current camera frame as reference landmarks (is_staff only)
+  const handleCaptureReference = async () => {
+    if (!latestRawRef.current) {
+      setCaptureStatus('error')
+      setTimeout(() => setCaptureStatus(null), 3000)
+      return
+    }
+    setCaptureStatus('capturing')
+    try {
+      const payload = {
+        left_hand: latestRawRef.current.leftHand ? landmarksToArray(latestRawRef.current.leftHand) : null,
+        right_hand: latestRawRef.current.rightHand ? landmarksToArray(latestRawRef.current.rightHand) : null
+      }
+      await client.put(`/api/v1/admin/signs/${currentSign.id}/`, {
+        reference_landmarks: payload
+      })
+      setCaptureStatus('success')
+      // Refetch lesson to update current sign's reference landmarks
+      queryClient.invalidateQueries({ queryKey: ['lessons', id] })
+      setTimeout(() => setCaptureStatus(null), 3000)
+    } catch (err) {
+      console.error('Failed to capture reference landmarks:', err)
+      setCaptureStatus('error')
+      setTimeout(() => setCaptureStatus(null), 3000)
+    }
+  }
+
+  const [hasTwoHands, setHasTwoHands] = useState(false)
+
+  // Handle landmarks callback from WebcamPanel
+  const handleLandmarks = useCallback((vector, leftHand, rightHand) => {
+    latestRawRef.current = { leftHand, rightHand }
+    setHasTwoHands(!!leftHand && !!rightHand)
+    scorer.processFrame(vector)
+  }, [scorer])
+
+  // Scroll to top and preload the ONNX model on mount
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    initModel().catch(err => console.warn('[ONNX] Preload failed in LessonPlayer:', err))
+  }, [])
 
   // Start lesson when data arrives — only once per lesson id
   useEffect(() => {
     if (lesson && lesson.signs?.length > 0 && sessionStore.lessonId !== lesson.id) {
       sessionStore.startLesson(lesson)
-      completeCalled.current = false  // reset for new lesson
+      completeCalled.current = false
+      setSignResults([])
     }
   }, [lesson]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -47,11 +235,7 @@ export default function LessonPlayer() {
     return () => { sessionStore.resetSession() }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const signs       = sessionStore.signs
-  const signIndex   = sessionStore.signIndex
-  const currentSign = signs[signIndex] || null
   const isComplete  = sessionStore.isComplete()
-  const scores      = sessionStore.scores
 
   // Call complete API once when session becomes complete
   useEffect(() => {
@@ -78,6 +262,7 @@ export default function LessonPlayer() {
 
   function handlePracticeAgain() {
     if (lesson) {
+      setSignResults([])
       sessionStore.startLesson(lesson)
       completeCalled.current = false
       setCompleteResult(null)
@@ -123,15 +308,12 @@ export default function LessonPlayer() {
           </span>
         </header>
         <div className="pt-14">
-          <LessonComplete
+          <LessonSummary
             lesson={lesson}
-            scores={scores}
+            signResults={signResults}
+            totalXP={completeResult?.xp_earned ?? signResults.reduce((sum, r) => sum + computeXP(r.score, r.sign.xp_reward), 0)}
             onPracticeAgain={handlePracticeAgain}
             onBack={handleBack}
-            xpEarned={completeResult?.xp_earned ?? null}
-            newLevel={completeResult?.new_level ?? null}
-            leveledUp={completeResult?.leveled_up ?? false}
-            badgesEarned={completeResult?.badges_earned ?? []}
           />
         </div>
       </div>
@@ -140,7 +322,7 @@ export default function LessonPlayer() {
 
   // ── Player ───────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#070714' }}>
+    <div className="min-h-screen flex flex-col animate-fade-in" style={{ background: '#070714' }}>
 
       {/* Fixed header bar */}
       <header
@@ -184,18 +366,35 @@ export default function LessonPlayer() {
       <div className="flex-1 pt-14">
         <div className="grid grid-cols-1 lg:grid-cols-5 min-h-[calc(100vh-56px)]">
 
-          {/* Left: Webcam */}
-          <div className="lg:col-span-3 h-[50vh] lg:h-auto bg-gray-900 rounded-2xl overflow-hidden m-4 min-h-[400px] flex">
+          {/* Left: Webcam with overlays — 2/5 width */}
+          <div className="lg:col-span-2 h-[45vh] lg:h-auto bg-gray-900 rounded-2xl overflow-hidden m-4 lg:mr-2 min-h-[320px] flex flex-col relative shadow-2xl border border-white/5">
             <ErrorBoundary fallback={<WebcamPermission error="device_error" onRetry={() => window.location.reload()} />}>
-              <WebcamPanel
-                onVideoReady={onVideoReady}
-                className="w-full h-full flex-1"
-              />
+              <div className="relative flex-1 w-full h-full min-h-0">
+                <WebcamPanel
+                  onVideoReady={onVideoReady}
+                  onLandmarks={handleLandmarks}
+                  showSkeleton={true}
+                  mediaPipeEnabled={true}
+                  className="w-full h-full object-cover"
+                />
+                <HoldRing ringRef={ringRef} />
+                {hasTwoHands && (
+                  <div className="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md text-cyan text-[11px] font-bold rounded-full px-2.5 py-1.5 flex items-center gap-1.5 border border-cyan/20 animate-pulse shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-cyan shadow-[0_0_6px_#06b6d4]"></div>
+                    Both Hands Tracked
+                  </div>
+                )}
+              </div>
             </ErrorBoundary>
+
+            {/* Live coaching hint overlay inside the webcam view (bottom center) */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
+              <LiveHint hintRef={hintRef} />
+            </div>
           </div>
 
-          {/* Right: Sign info + controls */}
-          <div className="lg:col-span-2 p-6 flex flex-col">
+          {/* Right: Sign info + controls — 3/5 width */}
+          <div className="lg:col-span-3 p-4 lg:pl-2 lg:pr-6 flex flex-col">
             <div className="sticky top-20">
               <LessonProgress
                 current={signIndex + 1}
@@ -205,30 +404,49 @@ export default function LessonPlayer() {
 
               {currentSign && (
                 <div className="mt-6">
-                  <SignCard sign={currentSign} size="lg" />
+                  <SignReference sign={currentSign} isPulsing={isPulsing} />
                 </div>
               )}
 
+              {/* Confidence Score Meter */}
               {currentSign && (
-                <div className="mt-4 text-center">
-                  <p className="text-sm text-text-muted">Make the sign for:</p>
-                  <p
-                    className="font-black font-outfit text-primary-light mt-1"
-                    style={{ fontSize: '3rem', lineHeight: 1, textShadow: '0 0 30px rgba(167,139,250,0.5)' }}
-                  >
-                    {currentSign.label}
-                  </p>
+                <div className="mt-4">
+                  <ScoreMeter meterRef={meterRef} />
                 </div>
               )}
 
-              <div className="flex justify-between gap-3 mt-8">
-                <Button variant="ghost" size="sm" onClick={() => sessionStore.nextSign()}>
-                  Skip
-                </Button>
-                <Button variant="primary" size="md" onClick={() => sessionStore.nextSign()}>
-                  Next →
-                </Button>
-              </div>
+              {/* Feedback coaching tip for failed attempts */}
+              <FeedbackTip tip={feedbackTip} isVisible={!overlayVisible && !!feedbackTip} />
+
+              {/* Skip button only when no reference landmarks exist */}
+              {(!currentSign?.reference_landmarks || currentSign?.reference_landmarks.length === 0) && (
+                <div className="flex justify-center mt-8">
+                  <Button variant="ghost" size="sm" onClick={handleSkip}>
+                    Skip (No Reference)
+                  </Button>
+                </div>
+              )}
+
+              {/* Staff Capture reference tool */}
+              {isStaff && currentSign && (
+                <div className="mt-8 p-4 rounded-xl border border-dashed border-primary/30 bg-primary/5 text-center">
+                  <p className="text-xs text-primary-light font-bold mb-2">Staff Developer Tool</p>
+                  <Button
+                    variant="cyan"
+                    size="sm"
+                    onClick={handleCaptureReference}
+                    disabled={captureStatus === 'capturing'}
+                  >
+                    {captureStatus === 'capturing' ? 'Capturing...' : 'Capture Reference'}
+                  </Button>
+                  {captureStatus === 'success' && (
+                    <p className="text-xs text-success mt-2 font-medium">✓ Reference landmarks captured!</p>
+                  )}
+                  {captureStatus === 'error' && (
+                    <p className="text-xs text-danger mt-2 font-medium">✗ Failed to capture landmarks (is hand in view?).</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -248,6 +466,33 @@ export default function LessonPlayer() {
           </Button>
         </div>
       </Modal>
+
+      {/* Score Overlay modal */}
+      <ScoreOverlay
+        score={overlayData?.score}
+        rating={overlayData?.rating}
+        xpEarned={overlayData?.xpEarned}
+        isVisible={overlayVisible}
+        onDismiss={handleOverlayDismiss}
+      />
+
+      {/* Streak Notification Toast */}
+      {notification?.type === 'streak' && (
+        <StreakNotification
+          currentStreak={notification.currentStreak}
+          isVisible={true}
+          onDismiss={dismiss}
+        />
+      )}
+
+      {/* Badge Notification Toast */}
+      {notification?.type === 'badge' && (
+        <BadgeNotification
+          badge={notification.badge}
+          isVisible={true}
+          onDismiss={dismiss}
+        />
+      )}
     </div>
   )
 }

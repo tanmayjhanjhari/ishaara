@@ -1,9 +1,18 @@
 import { useEffect, useRef } from 'react'
 import { useWebcam } from '../../cv/useWebcam'
+import { useMediaPipe } from '../../cv/useMediaPipe'
 import WebcamLoader from './WebcamLoader'
 import WebcamPermission from './WebcamPermission'
+import HandIndicator from './HandIndicator'
 
-export default function WebcamPanel({ onVideoReady, className = '', preferredDeviceId = null }) {
+export default function WebcamPanel({
+  onVideoReady,
+  onLandmarks,
+  className = '',
+  preferredDeviceId = null,
+  showSkeleton = true,
+  mediaPipeEnabled = true
+}) {
   const {
     videoRef,
     isReady,
@@ -26,6 +35,22 @@ export default function WebcamPanel({ onVideoReady, className = '', preferredDev
       localStorage.setItem('ishaara_camera_device', activeDeviceId)
     }
   }, [activeDeviceId])
+
+  // Sync canvas size to video size
+  useEffect(() => {
+    if (isReady && videoRef.current && canvasRef.current) {
+      canvasRef.current.width  = videoRef.current.videoWidth  || 640
+      canvasRef.current.height = videoRef.current.videoHeight || 480
+    }
+  }, [isReady, videoRef])
+
+  // MediaPipe hook integration
+  const { isLoading: mpLoading, isDetecting } = useMediaPipe({
+    videoRef,
+    canvasRef: showSkeleton ? canvasRef : null,
+    onLandmarks,
+    enabled: isReady && mediaPipeEnabled
+  })
 
   useEffect(() => {
     if (isReady && onVideoReady && videoRef.current) {
@@ -64,10 +89,13 @@ export default function WebcamPanel({ onVideoReady, className = '', preferredDev
       </div>
 
       {isReady && !error && (
-        <div className="absolute bottom-3 left-3 bg-black/50 text-white text-xs rounded-full px-2 py-1 flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-          Camera Active
-        </div>
+        <>
+          <div className="absolute bottom-3 left-3 bg-black/50 text-white text-xs rounded-full px-2 py-1 flex items-center gap-1.5 z-10">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+            Camera Active
+          </div>
+          <HandIndicator isDetecting={isDetecting} isLoading={mpLoading} />
+        </>
       )}
     </div>
   )

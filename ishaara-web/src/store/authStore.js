@@ -26,10 +26,15 @@ export const useAuthStore = create((set, get) => ({
 
   login: (data) => {
     const { access, refresh, user } = data
+    const displayName = user?.display_name
+      || user?.profile?.display_name
+      || user?.username
+    const updatedUser = user ? { ...user, displayName } : null
+
     localStorage.setItem(TOKEN_KEY,   access)
     localStorage.setItem(REFRESH_KEY, refresh)
-    localStorage.setItem(USER_KEY,    JSON.stringify(user))
-    set({ accessToken: access, refreshToken: refresh, user, isAuthenticated: true })
+    localStorage.setItem(USER_KEY,    JSON.stringify(updatedUser))
+    set({ accessToken: access, refreshToken: refresh, user: updatedUser, isAuthenticated: true })
   },
 
   updateToken: (newAccessToken) => {

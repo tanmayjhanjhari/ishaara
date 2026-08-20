@@ -24,6 +24,8 @@ class RegisterView(APIView):
         if not serializer.is_valid():
             return error_response(serializer.errors, status=400)
         user = serializer.save()
+        user.profile.display_name = user.username
+        user.profile.save()
         tokens = get_tokens_for_user(user)
         return success_response({
             'access': tokens['access'],

@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
 import PageWrapper from '../components/layout/PageWrapper'
 import { Button, EmptyState, SkeletonCard } from '../components/ui'
 import LessonCard from '../components/lesson/LessonCard'
 import { useLessons } from '../api/lessons'
+import { initModel } from '../cv/onnxModel'
 
 const TABS = [
   { label: 'All',      value: 'all'      },
@@ -16,6 +17,11 @@ const TABS = [
 export default function Lessons() {
   const navigate               = useNavigate()
   const [category, setCategory] = useState('all')
+
+  // Preload the ONNX model while the user browses lessons
+  useEffect(() => {
+    initModel().catch(err => console.warn('[ONNX] Preload failed:', err))
+  }, [])
 
   const filterParam = category === 'all' ? {} : { category }
   const { data: lessons = [], isLoading, isError, refetch } = useLessons(filterParam)

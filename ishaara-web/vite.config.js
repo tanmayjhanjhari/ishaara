@@ -4,4 +4,14 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    exclude: ['onnxruntime-web']
+  },
+  server: {
+    headers: {
+      // Required for ONNX WASM multi-thread support
+      'Cross-Origin-Opener-Policy':   'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp'
+    }
+  }
 })

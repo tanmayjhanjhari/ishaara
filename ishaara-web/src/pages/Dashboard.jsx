@@ -1,16 +1,13 @@
 import { Link } from 'react-router-dom'
-import { Zap, Flame, Star, ArrowRight, TrendingUp, Award, PlayCircle } from 'lucide-react'
+import { Zap, Flame, Star, ArrowRight, TrendingUp, PlayCircle, Award } from 'lucide-react'
 import PageWrapper from '../components/layout/PageWrapper'
 import HandConstellation from '../components/ui/HandConstellation'
-import { StatTile, ProgressBar, Card, Button, Badge } from '../components/ui'
+import { StatTile, ProgressBar, Card, Button, Badge, Spinner } from '../components/ui'
+import { useAuthStore } from '../store/authStore'
+import { getDisplayName } from '../utils/user'
+import { useMyStats } from '../api/gamification'
 
-// Mock constellation path: 26 alphabet signs
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-const SIGN_STATUS = {
-  A: 'mastered', B: 'mastered', C: 'mastered', D: 'mastered', E: 'mastered',
-  F: 'mastered', G: 'mastered', H: 'mastered', I: 'unlocked',
-}
-const getStatus = l => SIGN_STATUS[l] || (ALPHABET.indexOf(l) <= 11 ? 'locked-soon' : 'locked')
 
 const DOT_COLOR = {
   mastered: '#10B981',
@@ -26,12 +23,35 @@ const DOT_GLOW = {
 }
 
 export default function Dashboard() {
+  const { user } = useAuthStore()
+  const displayName = getDisplayName(user)
+  const { data: stats, isLoading } = useMyStats()
+
+  const xp = stats?.xp_total ?? 0
+  const level = stats?.level ?? 1
+  const streak = stats?.current_streak ?? 0
+  const signsMastered = stats?.signs_mastered ?? 0
+  const avgAccuracy = stats?.avg_accuracy ?? 0
+  const xpProgress = stats?.xp_progress ?? 0
+  const xpForNext = stats?.xp_for_next_level ?? 500
+  const xpPct = stats?.xp_progress_pct ?? 0
+  const badges = stats?.badges_earned ?? []
+
+  // Build constellation status from real mastery count
+  const getStatus = (letter) => {
+    const idx = ALPHABET.indexOf(letter)
+    if (idx < signsMastered) return 'mastered'
+    if (idx === signsMastered) return 'unlocked'
+    if (idx <= signsMastered + 3) return 'locked-soon'
+    return 'locked'
+  }
+
   return (
     <PageWrapper>
       {/* ── Greeting ─────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 40, animation: 'fadeUp 0.7s ease-out both' }}>
         <p className="text-sm font-semibold tracking-widest text-text-muted uppercase mb-2">
-          Welcome back
+          Welcome back, {displayName}
         </p>
         <h1 className="text-4xl md:text-5xl font-extrabold text-text-primary tracking-tight">
           Your Universe
@@ -40,10 +60,20 @@ export default function Dashboard() {
 
       {/* ── Stats row ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-        <StatTile icon={Flame} value="7" label="Day Streak" trend="up" trendValue="Hot" />
-        <StatTile icon={Zap} value="1,240" label="Total XP" trend="up" trendValue="120" />
-        <StatTile icon={Star} value="8" label="Signs Mastered" />
-        <StatTile icon={TrendingUp} value="94%" label="Avg Accuracy" />
+        {isLoading ? (
+          Array(4).fill(0).map((_, i) => (
+            <Card key={i} className="h-24 flex items-center justify-center">
+              <Spinner size="sm" />
+            </Card>
+          ))
+        ) : (
+          <>
+            <StatTile icon={Flame} value={streak || '—'} label="Day Streak" trend={streak > 0 ? 'up' : undefined} trendValue={streak > 1 ? 'Hot' : undefined} />
+            <StatTile icon={Zap} value={xp.toLocaleString()} label="Total XP" />
+            <StatTile icon={Star} value={signsMastered} label="Signs Mastered" />
+            <StatTile icon={TrendingUp} value={avgAccuracy > 0 ? `${avgAccuracy}%` : '—'} label="Avg Accuracy" />
+          </>
+        )}
       </div>
 
       {/* XP bar */}
@@ -52,15 +82,15 @@ export default function Dashboard() {
           <div className="flex justify-between items-baseline mb-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold tracking-widest text-text-muted uppercase">Level</span>
-              <span className="text-2xl font-black text-primary-light">5</span>
+              <span className="text-2xl font-black text-primary-light">{level}</span>
             </div>
             <div className="text-sm font-mono text-text-muted">
-              <span className="text-primary-light font-bold">1,240</span> / 2,000 XP
+              <span className="text-primary-light font-bold">{xpProgress.toLocaleString()}</span> / {xpForNext.toLocaleString()} XP
             </div>
           </div>
-          <ProgressBar value={62} color="primary" />
+          <ProgressBar value={xpPct} color="primary" />
           <div className="text-xs text-text-dim mt-3">
-            760 XP to Level 6
+            {isLoading ? '…' : `${(xpForNext - xpProgress).toLocaleString()} XP to Level ${level + 1}`}
           </div>
         </Card>
       </div>
@@ -74,8 +104,10 @@ export default function Dashboard() {
               <HandConstellation size={80} animate={false} />
               <div>
                 <div className="text-xs text-primary font-semibold tracking-widest uppercase mb-1">Continue where you left off</div>
-                <div className="text-2xl font-bold text-text-primary mb-1">Sign I: Alphabet</div>
-                <div className="text-sm text-text-muted">9 signs mastered · Learning Path</div>
+                <div className="text-2xl font-bold text-text-primary mb-1">ISL Alphabet</div>
+                <div className="text-sm text-text-muted">
+                  {signsMastered} of 26 signs mastered
+                </div>
               </div>
             </div>
             <Link to="/lessons">
@@ -153,24 +185,43 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold text-text-primary tracking-tight">
             Recent Achievements
           </h2>
+          <Link to="/profile" className="text-sm font-medium text-primary hover:text-primary-light flex items-center gap-1 transition-colors">
+            View all <ArrowRight size={14} />
+          </Link>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {[
-            { emoji: '🔥', name: 'Week Warrior', desc: '7-day streak', color: '#FCD34D', bg: 'rgba(245,158,11,0.1)' },
-            { emoji: '✋', name: 'First Signs', desc: 'Mastered A–E', color: '#6EE7B7', bg: 'rgba(16,185,129,0.1)' },
-            { emoji: '⚡', name: 'Speed Run', desc: 'Score 90+ three times', color: '#A78BFA', bg: 'rgba(124,58,237,0.1)' },
-          ].map(a => (
-            <Card key={a.name} variant="elevated" className="flex items-center gap-4">
-              <div className="text-3xl leading-none w-12 h-12 flex items-center justify-center rounded-xl shrink-0" style={{ background: a.bg }}>
-                {a.emoji}
-              </div>
-              <div>
-                <div className="font-bold text-sm" style={{ color: a.color }}>{a.name}</div>
-                <div className="text-xs text-text-muted mt-0.5">{a.desc}</div>
-              </div>
-            </Card>
-          ))}
-        </div>
+
+        {isLoading ? (
+          <div className="flex gap-4">
+            {Array(3).fill(0).map((_, i) => (
+              <Card key={i} className="flex-1 h-20 flex items-center justify-center">
+                <Spinner size="sm" />
+              </Card>
+            ))}
+          </div>
+        ) : badges.length === 0 ? (
+          <Card className="text-center py-10">
+            <Award size={36} className="mx-auto text-text-dim mb-3" />
+            <p className="text-text-muted text-sm">Complete your first lesson to earn badges!</p>
+            <Link to="/lessons" className="inline-block mt-4">
+              <Button variant="primary" size="sm">Start Learning</Button>
+            </Link>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {badges.slice(0, 3).map(b => (
+              <Card key={b.id} variant="elevated" className="flex items-center gap-4">
+                <div className="text-3xl leading-none w-12 h-12 flex items-center justify-center rounded-xl shrink-0"
+                  style={{ background: 'rgba(124,58,237,0.1)' }}>
+                  {b.icon_url ? <img src={b.icon_url} alt={b.name} className="w-8 h-8 object-contain" /> : '🏆'}
+                </div>
+                <div>
+                  <div className="font-bold text-sm text-primary-light">{b.name}</div>
+                  <div className="text-xs text-text-muted mt-0.5">{b.description}</div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </PageWrapper>
   )

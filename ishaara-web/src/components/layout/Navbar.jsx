@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Menu, X, Zap, Flame, LayoutDashboard, BookOpen, User, Trophy, LogOut, ChevronDown } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
-import { useLogout } from '../../api/auth'
 import { Button } from '../ui'
+import { getDisplayName } from '../../utils/user'
+import client from '../../api/client'
 
 const NAV = [
   { to: '/dashboard',   label: 'Home',    Icon: LayoutDashboard },
@@ -13,24 +14,37 @@ const NAV = [
 ]
 
 export default function Navbar() {
-  const { isAuthenticated, logout: storeLogout, user, refreshToken } = useAuthStore()
-  const logoutMut = useLogout()
+  const { isAuthenticated, logout: storeLogout, user } = useAuthStore()
   const [open,        setOpen]        = useState(false)
-  const [avatarOpen,  setAvatarOpen]  = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const navigate = useNavigate()
+  const dropdownRef = useRef(null)
 
-  async function handleLogout() {
-    // Always clear local state first, API blacklist is best-effort
-    try {
-      if (refreshToken) {
-        await logoutMut.mutateAsync({ refresh: refreshToken })
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false)
       }
-    } catch { /* swallow */ }
-    storeLogout()
-    navigate('/login')
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleLogout = async () => {
+    setDropdownOpen(false)
+    const refresh = localStorage.getItem('ishaara_refresh_token')
+    try {
+      await client.post('/api/v1/auth/logout/', { refresh })
+    } catch (e) {
+      // Ignore API error — still logout locally
+    } finally {
+      storeLogout()
+      navigate('/login')
+    }
   }
 
-  const initials = user?.username?.slice(0, 2).toUpperCase() || 'U'
+  const displayName = getDisplayName(user)
+  const initials = displayName.slice(0, 2).toUpperCase() || 'U'
   const streak   = user?.streak?.current_streak ?? 0
   const xp       = user?.profile?.xp_total ?? 0
 
@@ -92,9 +106,9 @@ export default function Navbar() {
                 </div>
 
                 {/* Avatar dropdown */}
-                <div className="relative">
+                <div className="relative" ref={dropdownRef}>
                   <button
-                    onClick={() => setAvatarOpen(v => !v)}
+                    onClick={() => setDropdownOpen(v => !v)}
                     className="hidden md:flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-white/5 transition-colors"
                   >
                     <div style={{
@@ -105,10 +119,10 @@ export default function Navbar() {
                     }}>
                       {initials}
                     </div>
-                    <ChevronDown size={14} style={{ color: '#7B7BA8', transition: 'transform 0.2s', transform: avatarOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                    <ChevronDown size={14} style={{ color: '#7B7BA8', transition: 'transform 0.2s', transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                   </button>
 
-                  {avatarOpen && (
+                  {dropdownOpen && (
                     <div
                       style={{
                         position: 'absolute', right: 0, top: 'calc(100% + 8px)',
@@ -119,32 +133,31 @@ export default function Navbar() {
                       }}
                     >
                       <div style={{ padding: '8px 12px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 6 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#EEE9FF' }}>{user?.username}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#EEE9FF' }}>{displayName}</div>
                         <div style={{ fontSize: 12, color: '#7B7BA8', marginTop: 2 }}>{user?.email}</div>
                       </div>
-                      <Link
-                        to="/profile"
-                        onClick={() => setAvatarOpen(false)}
+                      <button
+                        onClick={() => { navigate('/profile'); setDropdownOpen(false) }}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '10px 12px', borderRadius: 10,
-                          fontSize: 13, color: '#7B7BA8', textDecoration: 'none',
-                          transition: 'all 0.15s',
+                          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                          fontSize: 13, color: '#7B7BA8', background: 'transparent',
+                          transition: 'all 0.15s', textDecoration: 'none',
                         }}
-                        className="hover:bg-white/5 hover:text-text-primary"
+                        className="hover:bg-white/5 hover:text-text-primary text-left"
                       >
                         <User size={14} />
                         Profile
-                      </Link>
+                      </button>
                       <button
-                        onClick={() => { setAvatarOpen(false); handleLogout() }}
+                        onClick={handleLogout}
                         style={{
                           width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                           padding: '10px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                           fontSize: 13, color: '#EF4444', background: 'transparent',
                           transition: 'all 0.15s',
                         }}
-                        className="hover:bg-red-500/10"
+                        className="hover:bg-red-500/10 text-left"
                       >
                         <LogOut size={14} />
                         Sign Out
@@ -197,13 +210,7 @@ export default function Navbar() {
         )}
       </header>
 
-      {/* Close avatar dropdown on outside click */}
-      {avatarOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-          onClick={() => setAvatarOpen(false)}
-        />
-      )}
+
     </>
   )
 }

@@ -59,10 +59,17 @@ class UserSerializer(serializers.ModelSerializer):
 class MeSerializer(serializers.ModelSerializer):
     profile = ProfileSerializer(read_only=True)
     streak = StreakSerializer(read_only=True)
+    display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'date_joined', 'profile', 'streak']
+        fields = ['id', 'email', 'username', 'date_joined', 'profile', 'streak', 'display_name', 'is_staff']
+
+    def get_display_name(self, obj):
+        profile = getattr(obj, 'profile', None)
+        if profile and profile.display_name:
+            return profile.display_name
+        return obj.username
 
 class UpdateProfileSerializer(serializers.ModelSerializer):
     class Meta:
