@@ -13,6 +13,7 @@ class Sign(models.Model):
     id                  = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     slug                = models.SlugField(unique=True)
     label               = models.CharField(max_length=100)
+    description         = models.TextField(blank=True)
     category            = models.CharField(max_length=20, choices=CATEGORY_CHOICES[:3], default='alphabet')
     difficulty          = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(5)])
     reference_landmarks = models.JSONField(null=True, blank=True)
