@@ -30,6 +30,8 @@ import LessonSummary from '../components/lesson/LessonSummary'
 import StreakNotification from '../components/lesson/StreakNotification'
 import BadgeNotification from '../components/lesson/BadgeNotification'
 import TutorialPanel from '../components/lesson/TutorialPanel'
+import ISLReferenceImage from '../components/lesson/ISLReferenceImage'
+import { getSignData } from '../data/islAlphabet'
 import { useNotificationQueue } from '../utils/notificationQueue'
 import { getLiveHint, getPostAttemptTip } from '../cv/feedback'
 
@@ -460,43 +462,93 @@ export default function LessonPlayer() {
                 </div>
               )}
 
-              {/* Sign Reference (always visible) */}
+              {/* Sign info section */}
               {currentSign && (
-                <div className="mt-4">
-                  <SignReference sign={currentSign} isPulsing={isPulsing} mode={mode} />
+                <div className="mt-6 space-y-5">
+                  {mode === 'tutorial' ? (
+                    <div className="space-y-4">
+                      {/* Big reference visual */}
+                      <ISLReferenceImage letter={currentSign.label} size="large" />
+
+                      {/* Instructions & tips */}
+                      {getSignData(currentSign.label) && (
+                        <div className="space-y-3">
+                          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                            <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-1.5">
+                              Instruction
+                            </h4>
+                            <p className="text-sm text-gray-200">
+                              {getSignData(currentSign.label).instruction}
+                            </p>
+                          </div>
+
+                          {getSignData(currentSign.label).tip && (
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                              <h4 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1.5">
+                                Pro-Tip
+                              </h4>
+                              <p className="text-sm text-amber-200/90">
+                                {getSignData(currentSign.label).tip}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Ready to try? CTA */}
+                      <div className="pt-2 text-center space-y-3">
+                        <p className="text-xs text-gray-400 font-semibold">Ready to test your hand pose?</p>
+                        <button
+                          onClick={handleStartPractice}
+                          className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] active:scale-[0.99] hover:brightness-110 active:brightness-95"
+                          style={{
+                            background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                            color: '#fff',
+                            boxShadow: '0 4px 20px rgba(79,70,229,0.35)',
+                          }}
+                        >
+                          🎯 Start Practice
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Practice Layout: small reference image in a nice header card */}
+                      <div className="flex gap-4 items-center bg-white/5 border border-white/10 rounded-xl p-4">
+                        <div className="shrink-0">
+                          <ISLReferenceImage letter={currentSign.label} size="small" />
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                            Active Sign
+                          </span>
+                          <h3 className="text-2xl font-black text-white mt-0.5">
+                            {currentSign.label}
+                          </h3>
+                          <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                            Form this sign in front of the camera and hold steady for a split second.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Score Meter */}
+                      <ScoreMeter meterRef={meterRef} />
+
+                      {/* Live Hint */}
+                      <div className="hidden">
+                        <LiveHint hintRef={hintRef} />
+                      </div>
+
+                      {/* Feedback Coaching Tip */}
+                      <FeedbackTip tip={feedbackTip} isVisible={!overlayVisible && !!feedbackTip} />
+                    </div>
+                  )}
                 </div>
               )}
-
-              {/* Practice mode: Score meter */}
-              {currentSign && mode === 'practice' && (
-                <div className="mt-4">
-                  <ScoreMeter meterRef={meterRef} />
-                </div>
-              )}
-
-              {/* Tutorial mode: "Ready to try?" CTA */}
-              {currentSign && mode === 'tutorial' && (
-                <div className="mt-4 text-center">
-                  <button
-                    onClick={handleStartPractice}
-                    className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] active:scale-[0.99]"
-                    style={{
-                      background:    'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                      color:         '#fff',
-                      boxShadow:     '0 4px 20px rgba(79,70,229,0.35)',
-                    }}
-                  >
-                    🎯 I understand — Start Practice
-                  </button>
-                </div>
-              )}
-
-              {/* Feedback coaching tip for failed attempts */}
-              <FeedbackTip tip={feedbackTip} isVisible={!overlayVisible && !!feedbackTip} />
 
               {/* Skip button when no reference data */}
               {mode === 'practice' && (!currentSign?.reference_landmarks || currentSign?.reference_landmarks.length === 0) && (
-                <div className="flex justify-center mt-8">
+                <div className="flex justify-center mt-6">
                   <Button variant="ghost" size="sm" onClick={handleSkip}>
                     Skip (No Reference)
                   </Button>
