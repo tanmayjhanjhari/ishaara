@@ -50,6 +50,18 @@ export default function LessonPlayer() {
 
   const [showExitModal, setShowExitModal]   = useState(false)
   const [completeResult, setCompleteResult] = useState(null)
+  const [completedSignIds, setCompletedSignIds] = useState(new Set())
+
+  // Keep completedSignIds synced when lesson data is loaded/changed
+  useEffect(() => {
+    if (lesson && lesson.signs) {
+      const completed = new Set(
+        lesson.signs.filter(s => s.is_completed).map(s => s.id)
+      )
+      setCompletedSignIds(completed)
+    }
+  }, [lesson])
+
   const completeCalled = useRef(false)
 
   const videoReadyRef = useRef(null)
@@ -131,6 +143,14 @@ export default function LessonPlayer() {
       console.error('Attempt submit failed:', e)
     }
 
+    if (is_success) {
+      setCompletedSignIds(prev => {
+        const next = new Set(prev)
+        next.add(currentSign.id)
+        return next
+      })
+    }
+
     setOverlayData({ score, rating, xpEarned })
     setOverlayVisible(true)
     holdPercent.current = 0
@@ -171,26 +191,32 @@ export default function LessonPlayer() {
     onScoreUpdate: handleScoreUpdate,
   })
 
+  // Unified next sign / lesson completion handler
+  const handleNextSign = useCallback(() => {
+    scorer.resetScorer()
+    setFeedbackTip(null)
+    setIsPulsing(false)
+    if (signIndex < signs.length - 1) {
+      sessionStore.nextSign()
+    } else {
+      sessionStore.setSignIndex(signs.length)
+    }
+  }, [signIndex, signs.length, sessionStore, scorer])
+
   // Dismiss score overlay
   const handleOverlayDismiss = useCallback(() => {
     setOverlayVisible(false)
     if (overlayData?.score >= SUCCESS_THRESHOLD) {
-      sessionStore.nextSign()
-      scorer.resetScorer()
-      setFeedbackTip(null)
-      setIsPulsing(false)
+      handleNextSign()
     } else {
       // Failed — stay in practice mode for retry
       scorer.resetScorer()
     }
-  }, [overlayData, sessionStore, scorer])
+  }, [overlayData, handleNextSign, scorer])
 
   // Skip handler
   const handleSkip = () => {
-    scorer.resetScorer()
-    sessionStore.nextSign()
-    setFeedbackTip(null)
-    setIsPulsing(false)
+    handleNextSign()
   }
 
   // Capture reference landmarks (staff only)
@@ -243,6 +269,13 @@ export default function LessonPlayer() {
   useEffect(() => {
     if (lesson && lesson.signs?.length > 0 && sessionStore.lessonId !== lesson.id) {
       sessionStore.startLesson(lesson)
+      
+      // Auto-resume at the first uncompleted sign
+      const firstUncompletedIndex = lesson.signs.findIndex(s => !s.is_completed)
+      if (firstUncompletedIndex > 0) {
+        sessionStore.setSignIndex(firstUncompletedIndex)
+      }
+      
       completeCalled.current = false
       setSignResults([])
     }
@@ -434,6 +467,47 @@ export default function LessonPlayer() {
                 lessonTitle={lesson?.title ?? ''}
               />
 
+              {/* Interactive Sign Selector */}
+              {signs.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">
+                    Signs in Lesson (Click to Navigate)
+                  </p>
+                  <div className="flex flex-wrap gap-2 pb-3 border-b border-white/5">
+                    {signs.map((signItem, idx) => {
+                      const isCurrent = idx === signIndex
+                      const isCompleted = completedSignIds.has(signItem.id)
+                      const unlocked = idx === 0 || completedSignIds.has(signItem.id) || completedSignIds.has(signs[idx - 1]?.id)
+                      
+                      return (
+                        <button
+                          key={signItem.id}
+                          disabled={!unlocked}
+                          onClick={() => {
+                            sessionStore.setSignIndex(idx)
+                            scorer.resetScorer()
+                          }}
+                          className={`relative px-3.5 py-2 rounded-xl text-sm font-black transition-all flex items-center gap-1.5 border ${
+                            isCurrent
+                              ? 'bg-primary border-primary-light/35 text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]'
+                              : isCompleted
+                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/15'
+                                : unlocked
+                                  ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
+                                  : 'bg-white/[0.02] border-transparent text-gray-600 cursor-not-allowed'
+                          }`}
+                        >
+                          {signItem.label}
+                          {isCompleted && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Mode toggle tabs */}
               {currentSign && (
                 <div className="flex gap-2 mt-4">
@@ -495,20 +569,54 @@ export default function LessonPlayer() {
                         </div>
                       )}
 
-                      {/* Ready to try? CTA */}
-                      <div className="pt-2 text-center space-y-3">
-                        <p className="text-xs text-gray-400 font-semibold">Ready to test your hand pose?</p>
-                        <button
-                          onClick={handleStartPractice}
-                          className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] active:scale-[0.99] hover:brightness-110 active:brightness-95"
-                          style={{
-                            background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                            color: '#fff',
-                            boxShadow: '0 4px 20px rgba(79,70,229,0.35)',
-                          }}
-                        >
-                          🎯 Start Practice
-                        </button>
+                      {/* Ready to try / Already completed CTAs */}
+                      <div className="pt-2 space-y-3">
+                        {completedSignIds.has(currentSign.id) ? (
+                          <div className="space-y-3">
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-center justify-between">
+                              <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                Sign Already Completed
+                              </span>
+                              <span className="text-[10px] bg-emerald-500/20 text-emerald-200 px-2.5 py-0.5 rounded-full font-bold">
+                                Passed
+                              </span>
+                            </div>
+                            <div className="flex gap-3">
+                              <button
+                                onClick={handleStartPractice}
+                                className="flex-1 py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] active:scale-[0.99] bg-white/5 border border-white/10 text-white hover:bg-white/10"
+                              >
+                                🎯 Practice Again
+                              </button>
+                              <button
+                                onClick={handleNextSign}
+                                className="flex-1 py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] active:scale-[0.99] text-white hover:brightness-110"
+                                style={{
+                                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                                  boxShadow: '0 4px 15px rgba(16,185,129,0.25)',
+                                }}
+                              >
+                                {signIndex < signs.length - 1 ? '➡️ Next Sign' : '🏁 Finish Lesson'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center space-y-3">
+                            <p className="text-xs text-gray-400 font-semibold">Ready to test your hand pose?</p>
+                            <button
+                              onClick={handleStartPractice}
+                              className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] active:scale-[0.99] hover:brightness-110 active:brightness-95"
+                              style={{
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                                color: '#fff',
+                                boxShadow: '0 4px 20px rgba(79,70,229,0.35)',
+                              }}
+                            >
+                              🎯 Start Practice
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -541,6 +649,18 @@ export default function LessonPlayer() {
 
                       {/* Feedback Coaching Tip */}
                       <FeedbackTip tip={feedbackTip} isVisible={!overlayVisible && !!feedbackTip} />
+
+                      {/* If already completed, display next sign button in practice mode too */}
+                      {completedSignIds.has(currentSign.id) && (
+                        <div className="pt-2">
+                          <button
+                            onClick={handleNextSign}
+                            className="w-full py-2.5 rounded-xl font-bold text-sm bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/20 transition-all flex items-center justify-center gap-1.5"
+                          >
+                            <span>➡️ Skip to Next Sign</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

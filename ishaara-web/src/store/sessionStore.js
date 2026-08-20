@@ -17,6 +17,10 @@ export const useSessionStore = create((set, get) => ({
     signIndex: state.signIndex + 1
   })),
 
+  setSignIndex: (index) => set({
+    signIndex: index
+  }),
+
   recordScore: (score) => set((state) => ({
     scores: [...state.scores, score]
   })),

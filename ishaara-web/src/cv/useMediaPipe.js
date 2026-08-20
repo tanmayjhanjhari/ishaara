@@ -99,34 +99,40 @@ export function useMediaPipe({
             })
           }
 
-          let leftHand = null
-          let rightHand = null
+          let leftScreenHand = null
+          let rightScreenHand = null
 
-          hands.forEach((hand, idx) => {
-            const info = handednessList[idx]?.[0]
-            if (info) {
-              const label = info.label || info.categoryName
-              if (label === 'Left') {
-                leftHand = hand
-              } else if (label === 'Right') {
-                rightHand = hand
-              }
+          if (hands.length === 1) {
+            // Single hand: always map to left_hand (first 63 values) for 1-handed signs
+            leftScreenHand = hands[0]
+          } else if (hands.length >= 2) {
+            // Two hands: sort by screen x-coordinate of the wrist (index 0)
+            const handA = hands[0]
+            const handB = hands[1]
+            const xA = handA[0]?.x ?? 0.5
+            const xB = handB[0]?.x ?? 0.5
+            if (xA < xB) {
+              leftScreenHand = handA
+              rightScreenHand = handB
+            } else {
+              leftScreenHand = handB
+              rightScreenHand = handA
             }
-          })
+          }
 
-          if (leftHand || rightHand) {
-            const leftVector = leftHand && leftHand.length === 21
-              ? normalizeLandmarks(leftHand)
+          if (leftScreenHand || rightScreenHand) {
+            const leftVector = leftScreenHand && leftScreenHand.length === 21
+              ? normalizeLandmarks(leftScreenHand)
               : new Float32Array(63)
-            const rightVector = rightHand && rightHand.length === 21
-              ? normalizeLandmarks(rightHand)
+            const rightVector = rightScreenHand && rightScreenHand.length === 21
+              ? normalizeLandmarks(rightScreenHand)
               : new Float32Array(63)
 
             const combinedVector = new Float32Array(126)
             combinedVector.set(leftVector, 0)
             combinedVector.set(rightVector, 63)
 
-            onLandmarks?.(combinedVector, leftHand, rightHand)
+            onLandmarks?.(combinedVector, leftScreenHand, rightScreenHand)
             setIsDetecting(true)
           } else {
             onLandmarks?.(null, null, null)

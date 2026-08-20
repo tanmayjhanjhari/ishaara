@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Hand, Info, HelpCircle, Lightbulb, AlertTriangle } from 'lucide-react'
 import { getSignData } from '../../data/islAlphabet'
+import { REFERENCE_LANDMARKS } from '../../data/referenceLandmarks'
 
 // Accent color per letter
 const LETTER_COLORS = [
@@ -13,7 +14,7 @@ function getLetterColor(letter) {
 }
 
 // Holographic hand wireframe canvas
-function ReferenceHandCanvas({ leftHand, rightHand, color }) {
+export function ReferenceHandCanvas({ leftHand, rightHand, color }) {
   const canvasRef = React.useRef(null)
 
   React.useEffect(() => {
@@ -126,7 +127,18 @@ export default function SignReference({ sign, isPulsing, mode = 'practice' }) {
   // Extract reference hand data
   let leftHand  = null
   let rightHand = null
-  const ref = sign.reference_landmarks
+  let ref = sign.reference_landmarks
+
+  if (!ref) {
+    const localRef = REFERENCE_LANDMARKS[letter]
+    if (localRef) {
+      ref = {
+        left_hand: localRef.left_hand,
+        right_hand: localRef.right_hand
+      }
+    }
+  }
+
   if (ref) {
     if (Array.isArray(ref) && ref.length === 21) {
       rightHand = ref
