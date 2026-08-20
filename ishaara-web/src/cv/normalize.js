@@ -1,22 +1,22 @@
-const WRIST_INDEX  = 0
-const PALM_INDEX   = 9  // middle finger MCP
+const WRIST_INDEX = 0
+const PALM_INDEX  = 9  // middle finger MCP
 
 export function normalizeLandmarks(landmarks21) {
-  // landmarks21: array of 21 {x, y, z} objects
+  // landmarks21: array of 21 {x, y, z} objects from MediaPipe
   // Returns: Float32Array of 63 values
-  // Position-invariant, scale-invariant
+  // Layout: x0,y0,z0, x1,y1,z1, ..., x20,y20,z20 (interleaved per landmark)
+  // This matches training FEATURE_COLS: left/right_hand_x_i, y_i, z_i per i
 
-  const wrist    = landmarks21[WRIST_INDEX]
-  const palmRef  = landmarks21[PALM_INDEX]
+  const wrist   = landmarks21[WRIST_INDEX]
+  const palmRef = landmarks21[PALM_INDEX]
 
-  // Palm size = euclidean distance wrist → middle MCP
   const dx       = palmRef.x - wrist.x
   const dy       = palmRef.y - wrist.y
   const dz       = palmRef.z - wrist.z
   const palmSize = Math.sqrt(dx*dx + dy*dy + dz*dz)
 
-  // Guard against zero palm size (edge case: flat hand parallel to camera)
-  if (palmSize < 0.001) {
+  if (palmSize < 1e-6) {
+    console.warn('[Normalize] Palm size too small — returning zeros')
     return new Float32Array(63)
   }
 
@@ -31,13 +31,11 @@ export function normalizeLandmarks(landmarks21) {
 }
 
 export function landmarksToArray(landmarks21) {
-  // Convert MediaPipe landmarks to plain array
-  // Used for storing reference signs
+  // Convert MediaPipe landmarks to plain array for storage
   return landmarks21.map(lm => ({ x: lm.x, y: lm.y, z: lm.z }))
 }
 
 export function arrayToFloat32(landmarksArray) {
   // Convert stored reference array back to Float32Array
-  // Used when comparing reference to user landmarks
   return normalizeLandmarks(landmarksArray)
 }
