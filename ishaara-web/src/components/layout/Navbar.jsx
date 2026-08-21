@@ -5,6 +5,9 @@ import { useAuthStore } from '../../store/authStore'
 import { Button } from '../ui'
 import { getDisplayName } from '../../utils/user'
 import client from '../../api/client'
+import { useXPData } from '../../api/gamification'
+import LevelBadge from '../game/LevelBadge'
+import XPBar from '../game/XPBar'
 
 const NAV = [
   { to: '/dashboard',   label: 'Home',    Icon: LayoutDashboard },
@@ -15,6 +18,7 @@ const NAV = [
 
 export default function Navbar() {
   const { isAuthenticated, logout: storeLogout, user } = useAuthStore()
+  const { data: xpData } = useXPData({ enabled: !!isAuthenticated })
   const [open,        setOpen]        = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const navigate = useNavigate()
@@ -46,7 +50,8 @@ export default function Navbar() {
   const displayName = getDisplayName(user)
   const initials = displayName.slice(0, 2).toUpperCase() || 'U'
   const streak   = user?.streak?.current_streak ?? 0
-  const xp       = user?.profile?.xp_total ?? 0
+  const xp       = xpData?.total_xp ?? user?.profile?.xp_total ?? 0
+  const level    = xpData?.level ?? user?.profile?.level ?? 1
 
   return (
     <>
@@ -103,6 +108,32 @@ export default function Navbar() {
                   style={{ background: 'rgba(124,58,237,0.12)', color: '#A78BFA', border: '1px solid rgba(124,58,237,0.2)' }}>
                   <Zap size={13} />
                   {xp.toLocaleString()} XP
+                </div>
+
+                {/* Level badge and XP Progress tooltip */}
+                <div className="relative group flex items-center cursor-pointer">
+                  <LevelBadge level={level} size="sm" />
+                  
+                  {/* On hover tooltip showing full XP progress */}
+                  <div className="absolute right-0 top-full mt-2 hidden group-hover:block z-50 bg-[#0c0c20]/95 border border-indigo-500/20 p-4 rounded-xl shadow-2xl w-64 pointer-events-none transition-all duration-200 backdrop-blur-md">
+                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block mb-2">
+                      XP PROGRESS
+                    </span>
+                    <XPBar
+                      xp={xp}
+                      level={level}
+                      prevLevelXP={xpData?.prev_level_xp ?? 0}
+                      nextLevelXP={xpData?.next_level_xp ?? 100}
+                    />
+                    <div className="mt-2 text-[10px] text-gray-500 font-bold flex justify-between">
+                      <span>Total: {xp.toLocaleString()} XP</span>
+                      {xpData?.xp_to_next > 0 ? (
+                        <span>{xpData.xp_to_next} XP to Level {level + 1}</span>
+                      ) : (
+                        <span>Max Level reached!</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Avatar dropdown */}

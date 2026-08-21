@@ -34,6 +34,9 @@ import ISLReferenceImage from '../components/lesson/ISLReferenceImage'
 import { getSignData } from '../data/islAlphabet'
 import { useNotificationQueue } from '../utils/notificationQueue'
 import { getLiveHint, getPostAttemptTip } from '../cv/feedback'
+import XPToast from '../components/game/XPToast'
+import XPBar from '../components/game/XPBar'
+import { useXPData } from '../api/gamification'
 
 export default function LessonPlayer() {
   const { id }       = useParams()
@@ -117,6 +120,12 @@ export default function LessonPlayer() {
   const [signResults, setSignResults]   = useState([])
   const [hasTwoHands, setHasTwoHands]   = useState(false)
   const { current: notification, enqueue, dismiss } = useNotificationQueue()
+  const { data: xpData }                = useXPData()
+  const [xpToastVisible, setXpToastVisible] = useState(false)
+  const [xpToastAmount, setXpToastAmount]   = useState(0)
+  const [pendingLevelUp, setPendingLevelUp] = useState(false)
+
+  const sessionXP = signResults.reduce((sum, r) => sum + (r.xpEarned || 0), 0)
 
   // Direct DOM updates for 30fps performance (bypass React render loop)
   const handleScoreUpdate = useCallback((smoothed) => {
@@ -150,15 +159,28 @@ export default function LessonPlayer() {
       console.error('Attempt submit failed:', e)
     }
 
+    const actualXpEarned = attemptResponse?.xp_earned ?? xpEarned
+
+    if (attemptResponse && attemptResponse.xp_earned > 0) {
+      setXpToastAmount(attemptResponse.xp_earned)
+      setXpToastVisible(true)
+    }
+
+    if (attemptResponse?.leveled_up) {
+      setPendingLevelUp(true)
+    }
+
     if (is_success) {
       setCompletedSignIds(prev => {
         const next = new Set(prev)
         next.add(currentSign.id)
         return next
       })
+      queryClient.invalidateQueries({ queryKey: ['xp'] })
+      queryClient.invalidateQueries({ queryKey: ['my-stats'] })
     }
 
-    setOverlayData({ score, rating, xpEarned })
+    setOverlayData({ score, rating, xpEarned: actualXpEarned })
     setOverlayVisible(true)
     holdPercent.current = 0
     updateRing(ringRef, 0, false)
@@ -177,10 +199,11 @@ export default function LessonPlayer() {
           score:     Math.max(updated[idx].score, score),
           isSuccess: updated[idx].isSuccess || is_success,
           attempts:  updated[idx].attempts + 1,
+          xpEarned:  Math.max(updated[idx].xpEarned || 0, actualXpEarned)
         }
         return updated
       }
-      return [...prev, { sign: currentSign, score, isSuccess: is_success, attempts: 1 }]
+      return [...prev, { sign: currentSign, score, isSuccess: is_success, attempts: 1, xpEarned: actualXpEarned }]
     })
 
     if (attemptResponse?.streak_updated) {
@@ -215,12 +238,16 @@ export default function LessonPlayer() {
   const handleOverlayDismiss = useCallback(() => {
     setOverlayVisible(false)
     if (overlayData?.score >= SUCCESS_THRESHOLD) {
+      if (pendingLevelUp) {
+        queryClient.invalidateQueries({ queryKey: ['xp'] })
+        setPendingLevelUp(false)
+      }
       handleNextSign()
     } else {
       // Failed — stay in practice mode for retry
       scorer.resetScorer()
     }
-  }, [overlayData, handleNextSign, scorer])
+  }, [overlayData, handleNextSign, scorer, pendingLevelUp, queryClient])
 
   // Skip handler
   const handleSkip = () => {
@@ -474,6 +501,39 @@ export default function LessonPlayer() {
                 total={signs.length}
                 lessonTitle={lesson?.title ?? ''}
               />
+
+              {/* Session XP Progress & Level Progress */}
+              <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl space-y-4 shadow-lg">
+                {/* Session XP */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                      Session XP
+                    </span>
+                    <span className="text-xs font-black text-amber-400">
+                      +{sessionXP} XP
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500"
+                      style={{ width: `${Math.min(100, (sessionXP / Math.max(1, signs.length * 10)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Overall Level Progress */}
+                {xpData && (
+                  <div className="pt-3 border-t border-white/5">
+                    <XPBar
+                      xp={xpData.total_xp}
+                      level={xpData.level}
+                      prevLevelXP={xpData.prev_level_xp}
+                      nextLevelXP={xpData.next_level_xp}
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Interactive Sign Selector */}
               {signs.length > 0 && (
@@ -784,6 +844,13 @@ export default function LessonPlayer() {
       {notification?.type === 'badge' && (
         <BadgeNotification badge={notification.badge} isVisible={true} onDismiss={dismiss} />
       )}
+
+      {/* XP Toast notification */}
+      <XPToast
+        amount={xpToastAmount}
+        visible={xpToastVisible}
+        onDone={() => setXpToastVisible(false)}
+      />
     </div>
   )
 }

@@ -139,3 +139,22 @@ class MyStatsView(APIView):
             'display_name': profile.display_name or user.username,
             'date_joined': user.date_joined.isoformat(),
         })
+
+
+class XPView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile = request.user.profile
+        from services.xp_service import LEVEL_THRESHOLDS
+        current_level = profile.level
+        prev_threshold = LEVEL_THRESHOLDS[current_level - 1] if current_level >= 1 else 0
+        next_threshold = LEVEL_THRESHOLDS[current_level] if current_level < 50 else None
+        return success_response({
+            'total_xp':      profile.xp_total,
+            'level':         current_level,
+            'prev_level_xp': prev_threshold,
+            'next_level_xp': next_threshold,
+            'xp_to_next':    (next_threshold - profile.xp_total) if next_threshold else 0
+        })
+
