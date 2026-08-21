@@ -76,16 +76,23 @@ export default function LessonPlayer() {
   // 'practice' = scoring mode (ONNX runs, score meter active)
   const [mode, setMode]                     = useState('tutorial')
   const [showTutorialPanel, setShowTutorialPanel] = useState(true)
+  const [activeVariant, setActiveVariant]   = useState('two')
 
   // When the sign changes, reset to tutorial mode automatically
   useEffect(() => {
     setMode('tutorial')
     setShowTutorialPanel(true)
+    if (currentSign) {
+      const signData = getSignData(currentSign.label)
+      setActiveVariant(signData?.defaultHandForm || 'two')
+    } else {
+      setActiveVariant('two')
+    }
     scorer.resetScorer()
     holdPercent.current = 0
     updateMeter(meterRef, 0)
     updateRing(ringRef, 0, false)
-  }, [signIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [signIndex, currentSign?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartPractice = useCallback(() => {
     setShowTutorialPanel(false)
@@ -187,6 +194,7 @@ export default function LessonPlayer() {
   // Scorer hook — always mounted, mode gate is in handleLandmarks
   const scorer = useSignScorer({
     sign:          currentSign,
+    activeVariant,
     onScoreReady:  handleScoreReady,
     onScoreUpdate: handleScoreUpdate,
   })
@@ -536,13 +544,49 @@ export default function LessonPlayer() {
                 </div>
               )}
 
+              {/* Variant Selector Toggle */}
+              {currentSign && getSignData(currentSign.label)?.hands === 'variant' && (
+                <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
+                  <div className="text-left">
+                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">
+                      Hand Form Variant
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      Choose which style to perform
+                    </span>
+                  </div>
+                  <div className="flex bg-black/35 p-0.5 rounded-lg border border-white/5">
+                    <button
+                      onClick={() => setActiveVariant('one')}
+                      className={`text-xs px-3.5 py-1.5 rounded-md transition-all font-bold ${
+                        activeVariant === 'one'
+                          ? 'bg-indigo-600 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      1-Hand
+                    </button>
+                    <button
+                      onClick={() => setActiveVariant('two')}
+                      className={`text-xs px-3.5 py-1.5 rounded-md transition-all font-bold ${
+                        activeVariant === 'two'
+                          ? 'bg-indigo-600 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      2-Hand
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Sign info section */}
               {currentSign && (
                 <div className="mt-6 space-y-5">
                   {mode === 'tutorial' ? (
                     <div className="space-y-4">
                       {/* Big reference visual */}
-                      <ISLReferenceImage letter={currentSign.label} size="large" />
+                      <ISLReferenceImage letter={currentSign.label} size="large" activeVariant={activeVariant} />
 
                       {/* Instructions & tips */}
                       {getSignData(currentSign.label) && (
@@ -624,7 +668,7 @@ export default function LessonPlayer() {
                       {/* Practice Layout: small reference image in a nice header card */}
                       <div className="flex gap-4 items-center bg-white/5 border border-white/10 rounded-xl p-4">
                         <div className="shrink-0">
-                          <ISLReferenceImage letter={currentSign.label} size="small" />
+                          <ISLReferenceImage letter={currentSign.label} size="small" activeVariant={activeVariant} />
                         </div>
                         <div className="flex-1">
                           <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
@@ -704,6 +748,8 @@ export default function LessonPlayer() {
       {showTutorialPanel && currentSign && (
         <TutorialPanel
           sign={currentSign}
+          activeVariant={activeVariant}
+          setActiveVariant={setActiveVariant}
           onClose={() => setShowTutorialPanel(false)}
           onStartPractice={handleStartPractice}
         />

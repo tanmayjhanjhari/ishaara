@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react'
 import {
-  computeScore, smoothScores, normalizeReference, getRating,
+  computeScore, smoothScores, normalizeReference, getRating, getVariantLandmarks,
   SCORE_THRESHOLD, SUCCESS_THRESHOLD, HOLD_DURATION_MS, SMOOTH_WINDOW
 } from './scoring'
 import { predictSign, isModelReady } from './onnxModel'
@@ -10,6 +10,7 @@ const INFERENCE_INTERVAL_MS = 80
 
 export function useSignScorer({
   sign,          // current sign object with reference_landmarks
+  activeVariant = 'two',
   onScoreReady,  // callback: ({ score, is_success, rating }) => void
   onScoreUpdate  // callback: (smoothedScore) => void — for live meter
 }) {
@@ -20,17 +21,22 @@ export function useSignScorer({
   const cooldownRef       = useRef(false)  // post-success cooldown
   const lastInferenceRef  = useRef(0)      // timestamp of last inference
 
-  // Recompute reference vector when sign changes
+  // Recompute reference vector when sign changes or variant toggles
   useEffect(() => {
-    referenceRef.current  = sign?.reference_landmarks
-      ? normalizeReference(sign.reference_landmarks)
+    let ref = sign?.reference_landmarks
+    if (sign && (sign.label === 'I' || sign.label === 'U' || sign.label === 'Z')) {
+      ref = getVariantLandmarks(sign.label, activeVariant)
+    }
+
+    referenceRef.current  = ref
+      ? normalizeReference(ref)
       : null
     scoreWindowRef.current = []
     holdStartRef.current   = null
     isScoringRef.current   = false
     cooldownRef.current    = false
     lastInferenceRef.current = 0
-  }, [sign?.id])
+  }, [sign?.id, activeVariant])
 
   const processFrame = useCallback(async (userVector) => {
     // Post-success cooldown — don't score until user dismisses overlay
@@ -49,14 +55,25 @@ export function useSignScorer({
     if (now - lastInferenceRef.current < INFERENCE_INTERVAL_MS) return
     lastInferenceRef.current = now
 
+    // Apply zero-padding to inactive hand indices if activeVariant is 'one'
+    let processedVector = userVector
+    if (activeVariant === 'one') {
+      processedVector = new Float32Array(126)
+      processedVector.set(userVector.subarray(0, 63), 0)
+    }
+
     let score = 0
 
-    if (isModelReady()) {
+    const targetLabel = sign?.label?.toUpperCase()
+    const isVariant = targetLabel === 'I' || targetLabel === 'U' || targetLabel === 'Z'
+    const defaultForm = (targetLabel === 'I' || targetLabel === 'U') ? 'one' : 'two'
+    const useONNX = isModelReady() && (!isVariant || activeVariant === defaultForm)
+
+    if (useONNX) {
       try {
-        const pred = await predictSign(userVector)
+        const pred = await predictSign(processedVector)
 
         if (pred) {
-          const targetLabel    = sign?.label?.toUpperCase()
           const predictedLabel = pred.label?.toUpperCase()
 
           console.log('[Scorer] Sign check:', predictedLabel,
@@ -75,10 +92,10 @@ export function useSignScorer({
         console.error('[Scorer] Inference error:', err)
       }
     } else {
-      // Model not yet loaded — fall back to geometric distance scoring
-      console.log('[Scorer] Model not ready, using geometric fallback')
+      // Model not yet loaded or using custom variant — fall back to geometric distance scoring
+      console.log('[Scorer] Using geometric fallback for', targetLabel, '(variant form:', activeVariant, ')')
       if (referenceRef.current) {
-        score = computeScore(userVector, referenceRef.current)
+        score = computeScore(processedVector, referenceRef.current)
       }
     }
 
@@ -118,7 +135,7 @@ export function useSignScorer({
     } else {
       holdStartRef.current = null
     }
-  }, [sign?.label, onScoreReady, onScoreUpdate])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sign?.label, activeVariant, onScoreReady, onScoreUpdate])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetScorer = useCallback(() => {
     scoreWindowRef.current   = []

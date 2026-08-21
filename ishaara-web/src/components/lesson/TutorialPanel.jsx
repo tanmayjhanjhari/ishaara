@@ -1,58 +1,95 @@
-import { Hand, Lightbulb, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { getSignData } from '../../data/islAlphabet'
+import { Hand, Lightbulb, AlertTriangle } from 'lucide-react'
+import { getSignData, getVariantSteps } from '../../data/islAlphabet'
 import { ReferenceHandCanvas } from './SignReference'
 import { REFERENCE_LANDMARKS } from '../../data/referenceLandmarks'
+import { getVariantLandmarks } from '../../cv/scoring'
 
 // Accent color per letter — consistent with SignReference
 const LETTER_COLORS = [
   '#A78BFA', '#67E8F9', '#6EE7B7', '#FCD34D', '#F9A8D4',
   '#C4B5FD', '#7DD3FC', '#86EFAC', '#FDE68A', '#FDA4AF',
 ]
+
 function getLetterColor(letter) {
   const idx = (letter?.toUpperCase()?.charCodeAt(0) || 65) - 65
   return LETTER_COLORS[idx % LETTER_COLORS.length]
 }
 
-export default function TutorialPanel({ sign, onClose, onStartPractice }) {
+function getVariantInstruction(letter, activeVariant, defaultInstruction) {
+  if (letter === 'I') {
+    return activeVariant === 'one'
+      ? 'Extend your dominant pinky finger straight up, keeping other fingers firmly closed in a fist.'
+      : 'Touch the tip of your non-dominant middle finger with the index finger of your dominant hand, keeping other fingers open and relaxed.'
+  }
+  if (letter === 'U') {
+    return activeVariant === 'one'
+      ? 'Extend the index and middle fingers of your dominant hand straight up together, keeping other fingers closed in a fist.'
+      : 'Touch the tip of your non-dominant pinky finger with the index finger of your dominant hand, keeping other fingers open and relaxed.'
+  }
+  if (letter === 'Z') {
+    return activeVariant === 'one'
+      ? 'Extend your dominant index finger and trace a Z path in the air.'
+      : 'Press the tips of your dominant fingers vertically against the center of your open non-dominant palm.'
+  }
+  return defaultInstruction
+}
+
+export default function TutorialPanel({
+  sign,
+  activeVariant = 'two',
+  setActiveVariant,
+  onClose,
+  onStartPractice
+}) {
   if (!sign) return null
 
   const letter    = sign.label?.toUpperCase() || 'A'
   const signData  = getSignData(letter)
   const color     = getLetterColor(letter)
 
-  const instruction   = signData?.instruction   || `Make the ISL sign for "${letter}"`
+  const defaultInstruction = signData?.instruction || `Make the ISL sign for "${letter}"`
+  const instruction   = getVariantInstruction(letter, activeVariant, defaultInstruction)
   const tip           = signData?.tip           || 'Watch the reference carefully'
-  const handShape     = signData?.handShape     || 'See reference shape'
-  const commonMistake = signData?.commonMistake || 'Follow the steps carefully'
-  const steps         = signData?.steps || [
-    'Position your hand clearly in front of the camera',
-    instruction,
-    tip,
-    'Hold steady for half a second',
-  ]
+  const handShape     = signData?.hands === 'variant'
+    ? (activeVariant === 'one' ? 'One-handed Pose' : 'Two-handed Pose')
+    : (signData?.handShape || (signData?.hands === 'one' ? 'One-handed Pose' : 'Two-handed Pose'))
+  const watchOut      = signData?.watchOut      || signData?.commonMistake || 'Follow the steps carefully'
 
-  // Extract reference hand data for rendering in the tutorial modal
+  // Dynamic steps based on active variant
+  const steps = getVariantSteps(letter, activeVariant)
+
+  let handsBadge = ''
+  if (signData?.hands === 'one') {
+    handsBadge = 'ONE-HANDED SIGN'
+  } else if (signData?.hands === 'two') {
+    handsBadge = 'TWO-HANDED SIGN'
+  } else if (signData?.hands === 'variant') {
+    handsBadge = activeVariant === 'one' ? 'ONE-HANDED VARIANT' : 'TWO-HANDED VARIANT'
+  }
+
+  // Extract reference hand data with dynamic variant synthesis
   let leftHand  = null
   let rightHand = null
-  let ref = sign.reference_landmarks
+  let ref = null
 
-  if (!ref) {
-    const localRef = REFERENCE_LANDMARKS[letter]
-    if (localRef) {
-      ref = {
-        left_hand: localRef.left_hand,
-        right_hand: localRef.right_hand
+  if (letter === 'I' || letter === 'U' || letter === 'Z') {
+    ref = getVariantLandmarks(letter, activeVariant)
+  } else {
+    ref = sign.reference_landmarks
+    if (!ref) {
+      const localRef = REFERENCE_LANDMARKS[letter]
+      if (localRef) {
+        ref = {
+          left_hand: localRef.left_hand,
+          right_hand: localRef.right_hand
+        }
       }
     }
   }
 
   if (ref) {
-    if (Array.isArray(ref) && ref.length === 21) {
-      rightHand = ref
-    } else if (ref && typeof ref === 'object') {
-      leftHand  = ref.left_hand  || null
-      rightHand = ref.right_hand || null
-    }
+    leftHand  = ref.left_hand  || null
+    rightHand = ref.right_hand || null
   }
 
   return (
@@ -78,16 +115,50 @@ export default function TutorialPanel({ sign, onClose, onStartPractice }) {
             <p className="text-xs font-bold uppercase tracking-widest" style={{ color: `${color}99` }}>
               ISL Sign
             </p>
-            <div className="flex md:flex-col items-center md:items-start gap-3 mt-2 justify-center md:justify-start">
+            <div className="flex md:flex-col items-center md:items-start gap-3 mt-2 justify-center md:justify-start w-full">
               <span
                 className="text-6xl font-black leading-none"
                 style={{ color, textShadow: `0 0 30px ${color}60` }}
               >
                 {letter}
               </span>
-              <div className="text-left mt-1">
+              <div className="text-left mt-1 w-full">
                 <p className="text-sm font-bold text-white leading-tight">{handShape}</p>
                 <p className="text-[11px] text-gray-400 mt-0.5">{sign.category} · Alphabet</p>
+                {handsBadge && (
+                  <span
+                    className="inline-block text-[9px] font-extrabold px-2.5 py-0.5 rounded-full mt-1.5 border"
+                    style={{
+                      background: activeVariant === 'one' ? 'rgba(16,185,129,0.1)' : 'rgba(79,70,229,0.1)',
+                      borderColor: activeVariant === 'one' ? 'rgba(16,185,129,0.25)' : 'rgba(79,70,229,0.25)',
+                      color: activeVariant === 'one' ? '#34d399' : '#a5b4fc',
+                    }}
+                  >
+                    {handsBadge}
+                  </span>
+                )}
+
+                {/* Variant Switcher Toggle */}
+                {signData?.hands === 'variant' && setActiveVariant && (
+                  <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5 mt-3 w-full relative z-20">
+                    <button
+                      onClick={() => setActiveVariant('one')}
+                      className={`flex-1 text-[10px] py-1 rounded-md transition-all font-bold ${
+                        activeVariant === 'one' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      1-Hand
+                    </button>
+                    <button
+                      onClick={() => setActiveVariant('two')}
+                      className={`flex-1 text-[10px] py-1 rounded-md transition-all font-bold ${
+                        activeVariant === 'two' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      2-Hand
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -95,7 +166,7 @@ export default function TutorialPanel({ sign, onClose, onStartPractice }) {
           {/* Canvas container */}
           <div className="relative w-44 h-44 bg-black/40 rounded-xl overflow-hidden border border-white/10 shadow-inner flex items-center justify-center my-6 z-10">
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
-            <ReferenceHandCanvas leftHand={leftHand} rightHand={rightHand} color={color} />
+            <ReferenceHandCanvas leftHand={leftHand} rightHand={rightHand} color={color} size={150} />
           </div>
           
           <p className="hidden md:block text-[10px] text-gray-500 font-semibold text-center mt-2 z-10">
@@ -138,7 +209,7 @@ export default function TutorialPanel({ sign, onClose, onStartPractice }) {
                   <AlertTriangle size={12} className="text-red-400" />
                   <span className="text-[10px] font-bold text-red-400 uppercase tracking-wide">Watch out</span>
                 </div>
-                <p className="text-xs text-red-200 leading-relaxed">{commonMistake}</p>
+                <p className="text-xs text-red-200 leading-relaxed">{watchOut}</p>
               </div>
             </div>
 
