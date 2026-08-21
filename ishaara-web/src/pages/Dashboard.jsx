@@ -1,11 +1,14 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Zap, Flame, Star, ArrowRight, TrendingUp, PlayCircle, Award } from 'lucide-react'
 import PageWrapper from '../components/layout/PageWrapper'
 import HandConstellation from '../components/ui/HandConstellation'
 import { StatTile, ProgressBar, Card, Button, Badge, Spinner } from '../components/ui'
 import { useAuthStore } from '../store/authStore'
 import { getDisplayName } from '../utils/user'
-import { useMyStats } from '../api/gamification'
+import { useMyStats, useStreak } from '../api/gamification'
+import { useStreakStore } from '../store/streakStore'
+import StreakCard from '../components/game/StreakCard'
+import StreakReminderBanner from '../components/game/StreakReminderBanner'
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
@@ -24,12 +27,15 @@ const DOT_GLOW = {
 
 export default function Dashboard() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const displayName = getDisplayName(user)
   const { data: stats, isLoading } = useMyStats()
+  const { data: streakData } = useStreak()
+  const isStreakDay = useStreakStore(state => state.isStreakDay)
 
   const xp = stats?.xp_total ?? 0
   const level = stats?.level ?? 1
-  const streak = stats?.current_streak ?? 0
+  const streak = streakData?.current_streak ?? stats?.current_streak ?? 0
   const signsMastered = stats?.signs_mastered ?? 0
   const avgAccuracy = stats?.avg_accuracy ?? 0
   const xpProgress = stats?.xp_progress ?? 0
@@ -48,6 +54,14 @@ export default function Dashboard() {
 
   return (
     <PageWrapper>
+      {/* Streak Reminder Banner */}
+      {!isStreakDay && streak > 0 && (
+        <StreakReminderBanner
+          currentStreak={streak}
+          onStartPractice={() => navigate('/lessons')}
+        />
+      )}
+
       {/* ── Greeting ─────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 40, animation: 'fadeUp 0.7s ease-out both' }}>
         <p className="text-sm font-semibold tracking-widest text-text-muted uppercase mb-2">
@@ -76,23 +90,37 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* XP bar */}
-      <div className="mb-12 animate-fade-up" style={{ animationDelay: '0.15s' }}>
-        <Card>
-          <div className="flex justify-between items-baseline mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold tracking-widest text-text-muted uppercase">Level</span>
-              <span className="text-2xl font-black text-primary-light">{level}</span>
+      {/* Progression & Habit Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12 animate-fade-up" style={{ animationDelay: '0.15s' }}>
+        {/* XP bar */}
+        <div className="lg:col-span-8">
+          <Card className="h-full flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-baseline mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold tracking-widest text-text-muted uppercase">Level</span>
+                  <span className="text-2xl font-black text-primary-light">{level}</span>
+                </div>
+                <div className="text-sm font-mono text-text-muted">
+                  <span className="text-primary-light font-bold">{xpProgress.toLocaleString()}</span> / {xpForNext.toLocaleString()} XP
+                </div>
+              </div>
+              <ProgressBar value={xpPct} color="primary" />
             </div>
-            <div className="text-sm font-mono text-text-muted">
-              <span className="text-primary-light font-bold">{xpProgress.toLocaleString()}</span> / {xpForNext.toLocaleString()} XP
+            <div className="text-xs text-text-dim mt-3">
+              {isLoading ? '…' : `${(xpForNext - xpProgress).toLocaleString()} XP to Level ${level + 1}`}
             </div>
-          </div>
-          <ProgressBar value={xpPct} color="primary" />
-          <div className="text-xs text-text-dim mt-3">
-            {isLoading ? '…' : `${(xpForNext - xpProgress).toLocaleString()} XP to Level ${level + 1}`}
-          </div>
-        </Card>
+          </Card>
+        </div>
+
+        {/* Streak Card */}
+        <div className="lg:col-span-4">
+          <StreakCard
+            currentStreak={streakData?.current_streak ?? streak}
+            longestStreak={streakData?.longest_streak ?? 0}
+            lastActiveDate={streakData?.last_active_date ?? null}
+          />
+        </div>
       </div>
 
       {/* ── Continue Banner ───────────────────────────────────────────── */}

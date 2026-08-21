@@ -158,3 +158,17 @@ class XPView(APIView):
             'xp_to_next':    (next_threshold - profile.xp_total) if next_threshold else 0
         })
 
+
+class StreakView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.gamification.models import Streak
+        streak, _ = Streak.objects.get_or_create(user=request.user)
+        return success_response({
+            'current_streak':   streak.current_streak,
+            'longest_streak':   streak.longest_streak,
+            'last_active_date': str(streak.last_active_date) if streak.last_active_date else None
+        })
+
+

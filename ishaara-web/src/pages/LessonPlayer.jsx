@@ -37,6 +37,9 @@ import { getLiveHint, getPostAttemptTip } from '../cv/feedback'
 import XPToast from '../components/game/XPToast'
 import XPBar from '../components/game/XPBar'
 import { useXPData } from '../api/gamification'
+import StreakMilestoneModal from '../components/game/StreakMilestoneModal'
+import { isMilestone, getMilestoneMessage } from '../utils/streakMilestones'
+import { useStreakStore } from '../store/streakStore'
 
 export default function LessonPlayer() {
   const { id }       = useParams()
@@ -124,6 +127,7 @@ export default function LessonPlayer() {
   const [xpToastVisible, setXpToastVisible] = useState(false)
   const [xpToastAmount, setXpToastAmount]   = useState(0)
   const [pendingLevelUp, setPendingLevelUp] = useState(false)
+  const [milestoneCelebration, setMilestoneCelebration] = useState(null)
 
   const sessionXP = signResults.reduce((sum, r) => sum + (r.xpEarned || 0), 0)
 
@@ -207,7 +211,17 @@ export default function LessonPlayer() {
     })
 
     if (attemptResponse?.streak_updated) {
-      enqueue({ type: 'streak', currentStreak: attemptResponse.current_streak })
+      const newStreak = attemptResponse.current_streak
+      useStreakStore.getState().markActiveToday(newStreak)
+
+      if (isMilestone(newStreak)) {
+        const milestoneMsg = getMilestoneMessage(newStreak)
+        if (milestoneMsg) {
+          setMilestoneCelebration({ streak: newStreak, milestone: milestoneMsg })
+        }
+      } else {
+        enqueue({ type: 'streak', currentStreak: newStreak })
+      }
     }
     if (attemptResponse?.badges_earned?.length > 0) {
       attemptResponse.badges_earned.forEach(badge => enqueue({ type: 'badge', badge }))
@@ -851,6 +865,15 @@ export default function LessonPlayer() {
         visible={xpToastVisible}
         onDone={() => setXpToastVisible(false)}
       />
+
+      {/* Streak milestone celebration modal */}
+      {milestoneCelebration && (
+        <StreakMilestoneModal
+          streak={milestoneCelebration.streak}
+          milestone={milestoneCelebration.milestone}
+          onDismiss={() => setMilestoneCelebration(null)}
+        />
+      )}
     </div>
   )
 }

@@ -5,9 +5,10 @@ import { useAuthStore } from '../../store/authStore'
 import { Button } from '../ui'
 import { getDisplayName } from '../../utils/user'
 import client from '../../api/client'
-import { useXPData } from '../../api/gamification'
+import { useXPData, useStreak } from '../../api/gamification'
 import LevelBadge from '../game/LevelBadge'
 import XPBar from '../game/XPBar'
+import StreakCard from '../game/StreakCard'
 
 const NAV = [
   { to: '/dashboard',   label: 'Home',    Icon: LayoutDashboard },
@@ -19,6 +20,7 @@ const NAV = [
 export default function Navbar() {
   const { isAuthenticated, logout: storeLogout, user } = useAuthStore()
   const { data: xpData } = useXPData({ enabled: !!isAuthenticated })
+  const { data: streakData } = useStreak({ enabled: !!isAuthenticated })
   const [open,        setOpen]        = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const navigate = useNavigate()
@@ -49,7 +51,7 @@ export default function Navbar() {
 
   const displayName = getDisplayName(user)
   const initials = displayName.slice(0, 2).toUpperCase() || 'U'
-  const streak   = user?.streak?.current_streak ?? 0
+  const streak   = streakData?.current_streak ?? user?.streak?.current_streak ?? 0
   const xp       = xpData?.total_xp ?? user?.profile?.xp_total ?? 0
   const level    = xpData?.level ?? user?.profile?.level ?? 1
 
@@ -98,10 +100,8 @@ export default function Navbar() {
             {isAuthenticated ? (
               <>
                 {/* Streak pill */}
-                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold font-mono"
-                  style={{ background: 'rgba(245,158,11,0.12)', color: '#FCD34D', border: '1px solid rgba(245,158,11,0.2)' }}>
-                  <Flame size={13} />
-                  {streak}
+                <div className="hidden sm:flex">
+                  <StreakCard compact={true} currentStreak={streak} />
                 </div>
                 {/* XP pill */}
                 <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold font-mono"
