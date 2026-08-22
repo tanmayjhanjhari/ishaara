@@ -172,3 +172,62 @@ class StreakView(APIView):
         })
 
 
+class BadgeListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        all_badges = Badge.objects.all().order_by(
+            'condition_type', 'condition_value')
+        earned_ids = set(
+            UserBadge.objects.filter(user=user)
+            .values_list('badge_id', flat=True))
+        user_badges_map = {
+            str(ub.badge_id): ub.earned_at
+            for ub in UserBadge.objects.filter(user=user)}
+
+        # Current user stats for progress calculation
+        from services.badge_service import get_user_stat
+        stat_cache = {}
+
+        earned = []
+        locked = []
+
+        for badge in all_badges:
+            if badge.id in earned_ids:
+                earned.append({
+                    'id':              str(badge.id),
+                    'name':            badge.name,
+                    'description':     badge.description,
+                    'icon':            badge.icon_url,
+                    'condition_type':  badge.condition_type,
+                    'condition_value': badge.condition_value,
+                    'earned_at':       user_badges_map[str(badge.id)].isoformat()
+                })
+            else:
+                ctype = badge.condition_type
+                if ctype not in stat_cache:
+                    stat_cache[ctype] = get_user_stat(user, ctype)
+                current = stat_cache[ctype]
+                progress_pct = min(100, round(
+                    (current / badge.condition_value) * 100)) if badge.condition_value > 0 else 100
+                locked.append({
+                    'id':               str(badge.id),
+                    'name':             badge.name,
+                    'description':      badge.description,
+                    'icon':             badge.icon_url,
+                    'condition_type':   badge.condition_type,
+                    'condition_value':  badge.condition_value,
+                    'user_progress':    current,
+                    'progress_percent': progress_pct
+                })
+
+        return success_response({
+            'earned':          earned,
+            'locked':          locked,
+            'total_earned':    len(earned),
+            'total_available': len(earned) + len(locked)
+        })
+
+
+

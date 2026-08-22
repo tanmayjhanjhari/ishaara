@@ -2,28 +2,42 @@ from django.core.management.base import BaseCommand
 from apps.gamification.models import Badge
 
 class Command(BaseCommand):
-    help = 'Seed initial badges'
-
     def handle(self, *args, **kwargs):
+        Badge.objects.all().delete()
         badges = [
-            {'name': 'First Step', 'condition_type': 'attempt_count', 'condition_value': 1, 'description': 'Complete your first attempt.'},
-            {'name': 'Getting Warm', 'condition_type': 'attempt_count', 'condition_value': 10, 'description': 'Complete 10 attempts.'},
-            {'name': 'Committed', 'condition_type': 'attempt_count', 'condition_value': 50, 'description': 'Complete 50 attempts.'},
-            {'name': 'First Lesson', 'condition_type': 'lesson_count', 'condition_value': 1, 'description': 'Complete your first lesson.'},
-            {'name': 'Scholar', 'condition_type': 'lesson_count', 'condition_value': 5, 'description': 'Complete 5 lessons.'},
-            {'name': 'On Fire', 'condition_type': 'streak_days', 'condition_value': 3, 'description': 'Maintain a 3 day streak.'},
-            {'name': 'Week Warrior', 'condition_type': 'streak_days', 'condition_value': 7, 'description': 'Maintain a 7 day streak.'},
-            {'name': 'XP Hunter', 'condition_type': 'xp_total', 'condition_value': 100, 'description': 'Earn 100 XP.'},
-            {'name': 'Rising Star', 'condition_type': 'xp_total', 'condition_value': 500, 'description': 'Earn 500 XP.'},
+            # First Steps
+            dict(name='First Sign',     description='Complete your very first sign attempt',
+                 icon_url='🥇', condition_type='attempt_count',  condition_value=1),
+            dict(name='Ten Signs',      description='Complete 10 sign attempts',
+                 icon_url='✋', condition_type='attempt_count',  condition_value=10),
+            dict(name='Fifty Signs',    description='Complete 50 sign attempts',
+                 icon_url='💪', condition_type='attempt_count',  condition_value=50),
+            dict(name='Century Club',   description='Complete 100 sign attempts',
+                 icon_url='🌟', condition_type='attempt_count',  condition_value=100),
+            dict(name='Sign Machine',   description='Complete 500 sign attempts',
+                 icon_url='🤖', condition_type='attempt_count',  condition_value=500),
+            # Learning
+            dict(name='First Lesson',   description='Complete your first full lesson',
+                 icon_url='📖', condition_type='lesson_count',   condition_value=1),
+            dict(name='Scholar',        description='Complete 5 lessons',
+                 icon_url='🎓', condition_type='lesson_count',   condition_value=5),
+            dict(name='Graduate',       description='Complete 10 lessons',
+                 icon_url='🏛️', condition_type='lesson_count',   condition_value=10),
+            # Streaks
+            dict(name='On Fire',        description='Maintain a 3-day streak',
+                 icon_url='🔥', condition_type='streak_days',    condition_value=3),
+            dict(name='Week Warrior',   description='Maintain a 7-day streak',
+                 icon_url='📅', condition_type='streak_days',    condition_value=7),
+            dict(name='Monthly Master', description='Maintain a 30-day streak',
+                 icon_url='🗓️', condition_type='streak_days',    condition_value=30),
+            # XP
+            dict(name='XP Hunter',      description='Earn 100 total XP',
+                 icon_url='⚡', condition_type='xp_total',       condition_value=100),
+            dict(name='XP Champion',    description='Earn 500 total XP',
+                 icon_url='💎', condition_type='xp_total',       condition_value=500),
+            dict(name='XP Legend',      description='Earn 2000 total XP',
+                 icon_url='👑', condition_type='xp_total',       condition_value=2000),
         ]
-        
-        for badge_data in badges:
-            Badge.objects.get_or_create(
-                name=badge_data['name'],
-                defaults={
-                    'condition_type': badge_data['condition_type'],
-                    'condition_value': badge_data['condition_value'],
-                    'description': badge_data['description'],
-                }
-            )
-        self.stdout.write(self.style.SUCCESS('Successfully seeded badges'))
+        for b in badges:
+            Badge.objects.create(**b)
+        self.stdout.write(f'Created {len(badges)} badges')

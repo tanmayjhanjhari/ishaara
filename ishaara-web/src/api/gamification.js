@@ -35,3 +35,10 @@ export const useMyStats = () =>
     queryFn: () => client.get('/api/v1/me/stats/').then(r => r.data.data),
     staleTime: 30 * 1000,
   })
+
+export const useBadges = () =>
+  useQuery({
+    queryKey: ['badges'],
+    queryFn: () => client.get('/api/v1/badges/').then(r => r.data.data),
+    staleTime: 2 * 60 * 1000
+  })

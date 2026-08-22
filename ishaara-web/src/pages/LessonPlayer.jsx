@@ -225,8 +225,9 @@ export default function LessonPlayer() {
     }
     if (attemptResponse?.badges_earned?.length > 0) {
       attemptResponse.badges_earned.forEach(badge => enqueue({ type: 'badge', badge }))
+      queryClient.invalidateQueries({ queryKey: ['badges'] })
     }
-  }, [currentSign, postAttempt, enqueue])
+  }, [currentSign, postAttempt, enqueue, queryClient])
 
   // Scorer hook — always mounted, mode gate is in handleLandmarks
   const scorer = useSignScorer({
@@ -348,6 +349,7 @@ export default function LessonPlayer() {
           onSuccess: (data) => {
             setCompleteResult(data)
             queryClient.invalidateQueries({ queryKey: ['lessons'] })
+            queryClient.invalidateQueries({ queryKey: ['badges'] })
           },
         }
       )

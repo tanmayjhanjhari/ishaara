@@ -1,11 +1,13 @@
 import PageWrapper from '../components/layout/PageWrapper'
 import HandConstellation from '../components/ui/HandConstellation'
+import { useEffect } from 'react'
 import { Zap, Flame, Star, Award, TrendingUp, Calendar, Lock } from 'lucide-react'
-import { Card, StatTile, ProgressBar, Spinner } from '../components/ui'
+import { Card, StatTile, ProgressBar, Spinner, SkeletonLoader } from '../components/ui'
 import { useAuthStore } from '../store/authStore'
 import { getDisplayName } from '../utils/user'
-import { useMyStats } from '../api/gamification'
+import { useMyStats, useBadges } from '../api/gamification'
 import { useProgressSummary } from '../api/progress'
+import BadgeGrid from '../components/game/BadgeGrid'
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
@@ -56,6 +58,16 @@ export default function Profile() {
   const displayName = getDisplayName(user)
   const { data: stats, isLoading: statsLoading } = useMyStats()
   const { data: progressSummary, isLoading: progressLoading } = useProgressSummary()
+  const { data: badgesData, isLoading: badgesLoading } = useBadges()
+
+  useEffect(() => {
+    if (window.location.hash === '#badges') {
+      const el = document.getElementById('badges-section')
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 300)
+      }
+    }
+  }, [badgesLoading])
 
   const isLoading = statsLoading || progressLoading
 
@@ -177,33 +189,27 @@ export default function Profile() {
       </div>
 
       {/* ── Badges ── */}
-      <div className="animate-fade-up" style={{ animationDelay: '0.2s' }}>
+      <section id="badges-section" className="animate-fade-up" style={{ animationDelay: '0.2s' }}>
         <h2 className="font-outfit font-bold text-xl text-text-primary mb-4 flex items-baseline gap-3">
-          Achievements
+          Badges
           <span className="text-sm font-normal text-text-muted">
-            {earnedBadges.length}/{ALL_BADGES.length} earned
+            {badgesData?.total_earned || 0} / {badgesData?.total_available || 0} earned
           </span>
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {ALL_BADGES.map(b => {
-            const earned = earnedBadgeNames.has(b.name)
-            return (
-              <Card key={b.key} variant="elevated" className={`flex items-center gap-3 p-4 transition-all duration-200 ${earned ? 'opacity-100' : 'opacity-35'}`}>
-                <div className="w-11 h-11 shrink-0 rounded-xl text-[22px] flex items-center justify-center border" style={{
-                  background: earned ? `${b.color}18` : 'rgba(42,42,90,0.3)',
-                  borderColor: earned ? `${b.color}35` : 'rgba(42,42,90,0.5)',
-                }}>
-                  {earned ? b.emoji : <Lock size={16} style={{ color: '#4A4A7A' }} />}
-                </div>
-                <div>
-                  <div className="font-bold text-sm" style={{ color: earned ? b.color : '#4A4A7A' }}>{b.name}</div>
-                  <div className="text-xs text-text-muted mt-0.5">{b.desc}</div>
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      </div>
+
+        {badgesLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {Array(8).fill(0).map((_, i) => (
+              <SkeletonLoader key={i} variant="rectangle" height={120} className="rounded-xl" />
+            ))}
+          </div>
+        ) : (
+          <BadgeGrid
+            earned={badgesData?.earned || []}
+            locked={badgesData?.locked || []}
+          />
+        )}
+      </section>
     </PageWrapper>
   )
 }

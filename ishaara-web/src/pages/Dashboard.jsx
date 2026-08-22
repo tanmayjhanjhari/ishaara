@@ -5,7 +5,7 @@ import HandConstellation from '../components/ui/HandConstellation'
 import { StatTile, ProgressBar, Card, Button, Badge, Spinner } from '../components/ui'
 import { useAuthStore } from '../store/authStore'
 import { getDisplayName } from '../utils/user'
-import { useMyStats, useStreak } from '../api/gamification'
+import { useMyStats, useStreak, useBadges } from '../api/gamification'
 import { useStreakStore } from '../store/streakStore'
 import StreakCard from '../components/game/StreakCard'
 import StreakReminderBanner from '../components/game/StreakReminderBanner'
@@ -31,7 +31,10 @@ export default function Dashboard() {
   const displayName = getDisplayName(user)
   const { data: stats, isLoading } = useMyStats()
   const { data: streakData } = useStreak()
+  const { data: badgesData } = useBadges()
   const isStreakDay = useStreakStore(state => state.isStreakDay)
+
+  const recentBadges = badgesData?.earned?.slice(-3) || []
 
   const xp = stats?.xp_total ?? 0
   const level = stats?.level ?? 1
@@ -113,13 +116,53 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Streak Card */}
-        <div className="lg:col-span-4">
+        {/* Streak & Badge Summary */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
           <StreakCard
             currentStreak={streakData?.current_streak ?? streak}
             longestStreak={streakData?.longest_streak ?? 0}
             lastActiveDate={streakData?.last_active_date ?? null}
           />
+          
+          {/* Badge Summary Widget */}
+          <Card className="flex flex-col justify-between p-5 relative overflow-hidden bg-gradient-to-br from-indigo-950/40 to-space-light/20">
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-xs font-bold tracking-widest text-text-muted uppercase">Recent Badges</span>
+                <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                  {badgesData?.total_earned || 0} Earned
+                </span>
+              </div>
+
+              {recentBadges.length === 0 ? (
+                <div className="text-xs text-text-dim py-2 font-medium">
+                  Complete signs to earn badges
+                </div>
+              ) : (
+                <div className="flex gap-3 py-1 items-center">
+                  {recentBadges.map((b, idx) => (
+                    <div
+                      key={b.id || idx}
+                      title={b.name}
+                      className="text-3xl select-none transform hover:scale-110 transition-transform duration-200"
+                    >
+                      {b.icon || b.icon_url || '🏆'}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center">
+              <Link
+                to="/profile#badges"
+                className="text-xs font-bold text-primary hover:text-primary-light transition-colors flex items-center gap-1"
+              >
+                <span>See all {badgesData?.total_available || 14} badges</span>
+                <ArrowRight size={12} className="stroke-[2.5px]" />
+              </Link>
+            </div>
+          </Card>
         </div>
       </div>
 
