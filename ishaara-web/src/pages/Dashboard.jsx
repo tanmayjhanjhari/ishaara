@@ -1,376 +1,190 @@
-import { Link, useNavigate } from 'react-router-dom'
-import { Zap, Flame, Star, ArrowRight, TrendingUp, PlayCircle, Award } from 'lucide-react'
-import PageWrapper from '../components/layout/PageWrapper'
-import HandConstellation from '../components/ui/HandConstellation'
-import { StatTile, ProgressBar, Card, Button, Badge, Spinner } from '../components/ui'
-import { useAuthStore } from '../store/authStore'
-import { getDisplayName } from '../utils/user'
-import { useMyStats, useStreak, useBadges } from '../api/gamification'
+import { useDashboard } from '../api/auth'
 import { useStreakStore } from '../store/streakStore'
+import { useNavigate } from 'react-router-dom'
+import DashboardGreeting from '../components/ui/DashboardGreeting'
+import XPBar from '../components/game/XPBar'
 import StreakCard from '../components/game/StreakCard'
+import WeakSignsWidget from '../components/lesson/WeakSignsWidget'
+import RecentActivityFeed from '../components/lesson/RecentActivityFeed'
+import DailyGoalCard from '../components/game/DailyGoalCard'
+import ContinueLearningCard from '../components/lesson/ContinueLearningCard'
+import PageWrapper from '../components/layout/PageWrapper'
+import { SkeletonLoader, Card, Button } from '../components/ui'
+import LeaderboardPreview from '../components/game/LeaderboardPreview'
+import BadgeSummaryWidget from '../components/game/BadgeSummaryWidget'
 import StreakReminderBanner from '../components/game/StreakReminderBanner'
-
-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-
-const DOT_COLOR = {
-  mastered: '#10B981',
-  unlocked: '#A78BFA',
-  'locked-soon': '#4A4A7A',
-  locked: '#2A2A5A',
-}
-const DOT_GLOW = {
-  mastered: '0 0 12px rgba(16,185,129,0.8)',
-  unlocked: '0 0 12px rgba(167,139,250,0.9)',
-  'locked-soon': 'none',
-  locked: 'none',
-}
+import { Sparkles } from 'lucide-react'
 
 export default function Dashboard() {
-  const { user } = useAuthStore()
   const navigate = useNavigate()
-  const displayName = getDisplayName(user)
-  const { data: stats, isLoading } = useMyStats()
-  const { data: streakData } = useStreak()
-  const { data: badgesData } = useBadges()
-  const isStreakDay = useStreakStore(state => state.isStreakDay)
+  const { data, isLoading, isError } = useDashboard()
 
-  const recentBadges = badgesData?.earned?.slice(-3) || []
+  if (isLoading) return <DashboardSkeleton />
+  if (isError) return <DashboardError />
 
-  const xp = stats?.xp_total ?? 0
-  const level = stats?.level ?? 1
-  const streak = streakData?.current_streak ?? stats?.current_streak ?? 0
-  const signsMastered = stats?.signs_mastered ?? 0
-  const avgAccuracy = stats?.avg_accuracy ?? 0
-  const xpProgress = stats?.xp_progress ?? 0
-  const xpForNext = stats?.xp_for_next_level ?? 500
-  const xpPct = stats?.xp_progress_pct ?? 0
-  const badges = stats?.badges_earned ?? []
-
-  // Build constellation status from real mastery count
-  const getStatus = (letter) => {
-    const idx = ALPHABET.indexOf(letter)
-    if (idx < signsMastered) return 'mastered'
-    if (idx === signsMastered) return 'unlocked'
-    if (idx <= signsMastered + 3) return 'locked-soon'
-    return 'locked'
-  }
+  const {
+    profile,
+    streak,
+    weak_signs = [],
+    recent_attempts = [],
+    lesson_progress = [],
+    recent_badges = [],
+    daily_challenge,
+  } = data
 
   return (
     <PageWrapper>
-      {/* Streak Reminder Banner */}
-      {!isStreakDay && streak > 0 && (
-        <StreakReminderBanner
-          currentStreak={streak}
-          onStartPractice={() => navigate('/lessons')}
-        />
-      )}
-
-      {/* ── Greeting ─────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 40, animation: 'fadeUp 0.7s ease-out both' }}>
-        <p className="text-sm font-semibold tracking-widest text-text-muted uppercase mb-2">
-          Welcome back, {displayName}
-        </p>
-        <h1 className="text-4xl md:text-5xl font-extrabold text-text-primary tracking-tight">
-          Your Universe
-        </h1>
-      </div>
-
-      {/* ── Stats row ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-        {isLoading ? (
-          Array(4).fill(0).map((_, i) => (
-            <Card key={i} className="h-24 flex items-center justify-center">
-              <Spinner size="sm" />
-            </Card>
-          ))
-        ) : (
-          <>
-            <StatTile icon={Flame} value={streak || '—'} label="Day Streak" trend={streak > 0 ? 'up' : undefined} trendValue={streak > 1 ? 'Hot' : undefined} />
-            <StatTile icon={Zap} value={xp.toLocaleString()} label="Total XP" />
-            <StatTile icon={Star} value={signsMastered} label="Signs Mastered" />
-            <StatTile icon={TrendingUp} value={avgAccuracy > 0 ? `${avgAccuracy}%` : '—'} label="Avg Accuracy" />
-          </>
-        )}
-      </div>
-
-      {/* Progression & Habit Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12 animate-fade-up" style={{ animationDelay: '0.15s' }}>
-        {/* Left column: Level Progress & Leaderboard Preview */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          {/* Level Progress */}
-          <Card className="p-5 flex flex-col justify-between">
-            <div>
-              <div className="flex justify-between items-baseline mb-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold tracking-widest text-text-muted uppercase">Level</span>
-                  <span className="text-2xl font-black text-primary-light">{level}</span>
-                </div>
-                <div className="text-sm font-mono text-text-muted">
-                  <span className="text-primary-light font-bold">{xpProgress.toLocaleString()}</span> / {xpForNext.toLocaleString()} XP
-                </div>
-              </div>
-              <ProgressBar value={xpPct} color="primary" />
-            </div>
-            <div className="text-xs text-text-dim mt-3">
-              {isLoading ? '…' : `${(xpForNext - xpProgress).toLocaleString()} XP to Level ${level + 1}`}
-            </div>
-          </Card>
-
-          {/* LeagueCard (Leaderboard preview) */}
-          <Card className="p-5 flex flex-col justify-between bg-gradient-to-br from-space-light/10 to-indigo-950/20 border border-white/5 shadow-lg">
-            <div>
-              <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
-                <span className="text-xs font-bold tracking-widest text-text-muted uppercase flex items-center gap-1.5">
-                  <span>🏆</span> Weekly League
-                </span>
-                {myRank ? (
-                  <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">
-                    Rank #{myRank}
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
-                    Unranked
-                  </span>
-                )}
-              </div>
-
-              {/* User weekly status */}
-              <div className="flex items-baseline justify-between mb-4">
-                {myRank ? (
-                  <div className="flex flex-col">
-                    <span className="text-2xl font-black text-white font-outfit">
-                      #{myRank}
-                    </span>
-                    <span className="text-xs text-gray-400 mt-0.5">
-                      {lbData?.current_user?.weekly_xp?.toLocaleString() || 0} XP
-                    </span>
-                    {lbData?.current_user?.xp_to_next_rank > 0 && (
-                      <span className="text-[10px] text-indigo-400 font-bold mt-1">
-                        +{lbData.current_user.xp_to_next_rank} XP to rank up
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col">
-                    <span className="text-lg font-bold text-gray-500 font-outfit">
-                      Unranked
-                    </span>
-                    <span className="text-xs text-gray-400 mt-0.5">
-                      Practice to join the leaderboard
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Top 3 preview */}
-              {lbData?.entries && lbData.entries.length > 0 && (
-                <div className="space-y-2 mt-3 pt-3 border-t border-white/5">
-                  <span className="text-[9px] font-black tracking-wider uppercase text-gray-500 block mb-1">Top Learners</span>
-                  {lbData.entries.slice(0, 3).map((entry, idx) => {
-                    const rankEmojis = ['🥇', '🥈', '🥉']
-                    return (
-                      <div key={entry.user_id} className="flex justify-between items-center text-xs font-semibold">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="shrink-0">{rankEmojis[idx]}</span>
-                          <span className="text-gray-300 truncate">{entry.display_name}</span>
-                        </div>
-                        <span className="text-gray-500 font-mono font-bold shrink-0">{entry.weekly_xp} XP</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-white/5 flex justify-end">
-              <Link
-                to="/leaderboard"
-                className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
-              >
-                <span>View Full Leaderboard</span>
-                <ArrowRight size={12} className="stroke-[2.5px]" />
-              </Link>
-            </div>
-          </Card>
-        </div>
-
-        {/* Right column: Streak & Badge Summary */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          <StreakCard
-            currentStreak={streakData?.current_streak ?? streak}
-            longestStreak={streakData?.longest_streak ?? 0}
-            lastActiveDate={streakData?.last_active_date ?? null}
+      <div className="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
+        {/* Streak reminder banner if not active today */}
+        {!streak.is_active_today && streak.current > 0 && (
+          <StreakReminderBanner
+            currentStreak={streak.current}
+            onStartPractice={() => navigate('/lessons')}
           />
-          
-          {/* Badge Summary Widget */}
-          <Card className="flex flex-col justify-between p-5 relative overflow-hidden bg-gradient-to-br from-indigo-950/40 to-space-light/20">
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-xs font-bold tracking-widest text-text-muted uppercase">Recent Badges</span>
-                <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">
-                  {badgesData?.total_earned || 0} Earned
-                </span>
-              </div>
+        )}
 
-              {recentBadges.length === 0 ? (
-                <div className="text-xs text-text-dim py-2 font-medium">
-                  Complete signs to earn badges
-                </div>
-              ) : (
-                <div className="flex gap-3 py-1 items-center">
-                  {recentBadges.map((b, idx) => (
-                    <div
-                      key={b.id || idx}
-                      title={b.name}
-                      className="text-3xl select-none transform hover:scale-110 transition-transform duration-200"
-                    >
-                      {b.icon || b.icon_url || '🏆'}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        {/* Greeting */}
+        <DashboardGreeting
+          displayName={profile.display_name}
+          currentStreak={streak.current}
+          attemptsToday={profile.attempts_today}
+        />
 
-            <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center">
-              <Link
-                to="/profile#badges"
-                className="text-xs font-bold text-primary hover:text-primary-light transition-colors flex items-center gap-1"
-              >
-                <span>See all {badgesData?.total_available || 14} badges</span>
-                <ArrowRight size={12} className="stroke-[2.5px]" />
-              </Link>
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* ── Continue Banner ───────────────────────────────────────────── */}
-      <div className="mb-12 animate-fade-up" style={{ animationDelay: '0.2s' }}>
-        <Card variant="elevated" className="overflow-hidden relative p-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-cyan/10 pointer-events-none" />
-          <div className="p-8 flex items-center justify-between flex-wrap gap-6 relative z-10">
-            <div className="flex items-center gap-6">
-              <HandConstellation size={80} animate={false} />
-              <div>
-                <div className="text-xs text-primary font-semibold tracking-widest uppercase mb-1">Continue where you left off</div>
-                <div className="text-2xl font-bold text-text-primary mb-1">ISL Alphabet</div>
-                <div className="text-sm text-text-muted">
-                  {signsMastered} of 26 signs mastered
-                </div>
-              </div>
-            </div>
-            <Link to="/lessons">
-              <Button variant="primary" size="lg">
-                <PlayCircle size={18} className="mr-2" />
-                Continue
-              </Button>
-            </Link>
-          </div>
-        </Card>
-      </div>
-
-      {/* ── Constellation Map ─────────────────────────────────────────── */}
-      <div className="mb-12 animate-fade-up" style={{ animationDelay: '0.25s' }}>
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-xl font-bold text-text-primary tracking-tight">
-            Sign Constellation Map
-          </h2>
-          <Link to="/lessons" className="text-sm font-medium text-primary hover:text-primary-light flex items-center gap-1 transition-colors">
-            View all <ArrowRight size={14} />
-          </Link>
+        {/* XP Bar — full width */}
+        <div className="mb-8">
+          <XPBar
+            xp={profile.xp_total}
+            level={profile.level}
+            nextLevelXP={profile.next_level_xp}
+            prevLevelXP={profile.prev_level_xp}
+            animated={true}
+          />
         </div>
 
-        <Card>
-          <div className="flex flex-wrap gap-4 items-center">
-            {ALPHABET.map((letter, i) => {
-              const status = getStatus(letter)
-              const isActive = status === 'unlocked'
-              return (
-                <div key={letter} className="flex flex-col items-center gap-1.5">
-                  <div style={{
-                    width: isActive ? 44 : 36,
-                    height: isActive ? 44 : 36,
-                    borderRadius: '50%',
-                    background: status === 'mastered' ? 'rgba(16,185,129,0.15)' : status === 'unlocked' ? 'rgba(124,58,237,0.2)' : 'rgba(42,42,90,0.5)',
-                    border: `2px solid ${DOT_COLOR[status]}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: DOT_GLOW[status],
-                    cursor: status === 'locked' ? 'default' : 'pointer',
-                    transition: 'all 0.2s ease',
-                    animation: isActive ? 'pulseGlow 2.5s ease-in-out infinite' : 'none',
-                  }}>
-                    <span className="font-bold font-outfit" style={{
-                      fontSize: isActive ? '0.95rem' : '0.8rem',
-                      color: DOT_COLOR[status],
-                    }}>{letter}</span>
-                  </div>
-                  {status === 'mastered' && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap gap-6 mt-6 pt-5 border-t border-white/5">
-            {[
-              { color: '#10B981', label: 'Mastered' },
-              { color: '#A78BFA', label: 'In Progress' },
-              { color: '#4A4A7A', label: 'Locked' },
-            ].map(l => (
-              <div key={l.label} className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: l.color }} />
-                <span className="text-xs font-medium text-text-muted">{l.label}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* ── Achievements row ──────────────────────────────────────────── */}
-      <div className="animate-fade-up" style={{ animationDelay: '0.3s' }}>
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-xl font-bold text-text-primary tracking-tight">
-            Recent Achievements
-          </h2>
-          <Link to="/profile" className="text-sm font-medium text-primary hover:text-primary-light flex items-center gap-1 transition-colors">
-            View all <ArrowRight size={14} />
-          </Link>
-        </div>
-
-        {isLoading ? (
-          <div className="flex gap-4">
-            {Array(3).fill(0).map((_, i) => (
-              <Card key={i} className="flex-1 h-20 flex items-center justify-center">
-                <Spinner size="sm" />
-              </Card>
-            ))}
-          </div>
-        ) : badges.length === 0 ? (
-          <Card className="text-center py-10">
-            <Award size={36} className="mx-auto text-text-dim mb-3" />
-            <p className="text-text-muted text-sm">Complete your first lesson to earn badges!</p>
-            <Link to="/lessons" className="inline-block mt-4">
-              <Button variant="primary" size="sm">Start Learning</Button>
-            </Link>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {badges.slice(0, 3).map(b => (
-              <Card key={b.id} variant="elevated" className="flex items-center gap-4">
-                <div className="text-3xl leading-none w-12 h-12 flex items-center justify-center rounded-xl shrink-0"
-                  style={{ background: 'rgba(124,58,237,0.1)' }}>
-                  {b.icon_url ? <img src={b.icon_url} alt={b.name} className="w-8 h-8 object-contain" /> : '🏆'}
+        {/* Optional Daily Challenge Banner */}
+        {daily_challenge && (
+          <Card className="mb-8 p-5 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900/40 border border-indigo-500/20 relative overflow-hidden select-none">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                  <Sparkles size={20} className="animate-spin-slow" />
                 </div>
                 <div>
-                  <div className="font-bold text-sm text-primary-light">{b.name}</div>
-                  <div className="text-xs text-text-muted mt-0.5">{b.description}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+                      Daily Challenge
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                      +{daily_challenge.xp_reward} XP
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-white mt-1">
+                    {daily_challenge.title}
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {daily_challenge.description}
+                  </p>
                 </div>
-              </Card>
-            ))}
-          </div>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                className="w-full sm:w-auto font-bold shrink-0"
+                onClick={() => navigate('/lessons')}
+              >
+                Accept Challenge
+              </Button>
+            </div>
+          </Card>
         )}
+
+        {/* Main grid */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          {/* Row 1 */}
+          {/* Streak card — col 1-4 */}
+          <div className="md:col-span-4">
+            <StreakCard
+              currentStreak={streak.current}
+              longestStreak={streak.longest}
+              lastActiveDate={streak.last_active}
+            />
+          </div>
+
+          {/* Daily goal — col 5-8 */}
+          <div className="md:col-span-4">
+            <DailyGoalCard
+              attemptsToday={profile.attempts_today}
+              goalCount={10}
+            />
+          </div>
+
+          {/* Continue learning — col 9-12 */}
+          <div className="md:col-span-4">
+            <ContinueLearningCard lessonProgress={lesson_progress} />
+          </div>
+
+          {/* Row 2 */}
+          {/* Weak signs — col 1-5 */}
+          <div className="md:col-span-5">
+            <WeakSignsWidget signs={weak_signs} />
+          </div>
+
+          {/* Recent activity — col 6-12 */}
+          <div className="md:col-span-7">
+            <RecentActivityFeed attempts={recent_attempts} />
+          </div>
+
+          {/* Row 3 */}
+          {/* Leaderboard preview — col 1-6 */}
+          <div className="md:col-span-6">
+            <LeaderboardPreview />
+          </div>
+
+          {/* Badges summary — col 7-12 */}
+          <div className="md:col-span-6">
+            <BadgeSummaryWidget />
+          </div>
+        </div>
+      </div>
+    </PageWrapper>
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <PageWrapper>
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <SkeletonLoader variant="line" width="w-64" height="h-8" className="mb-2" />
+        <SkeletonLoader variant="line" width="w-40" height="h-4" className="mb-8" />
+        <SkeletonLoader variant="rectangle" height="h-6" className="mb-6" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <SkeletonLoader variant="rectangle" height="h-32" />
+          <SkeletonLoader variant="rectangle" height="h-32" />
+          <SkeletonLoader variant="rectangle" height="h-32" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SkeletonLoader variant="rectangle" height="h-48" />
+          <SkeletonLoader variant="rectangle" height="h-48" />
+        </div>
+      </div>
+    </PageWrapper>
+  )
+}
+
+function DashboardError() {
+  return (
+    <PageWrapper>
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <p className="text-gray-400">Could not load dashboard</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-3 text-indigo-400 text-sm underline hover:text-indigo-300"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     </PageWrapper>
   )

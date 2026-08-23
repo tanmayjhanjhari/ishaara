@@ -25,3 +25,13 @@ export const useMe = () =>
     queryFn: () => client.get('/api/v1/users/me/').then(res => res.data),
     enabled: false, // only fetch when explicitly called
   })
+
+export const useDashboard = () =>
+  useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () =>
+      client.get('/api/v1/dashboard/').then(r => r.data.data),
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true
+  })
+
