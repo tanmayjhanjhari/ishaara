@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from .models import User, Profile
@@ -227,4 +227,25 @@ class DashboardView(APIView):
                 'xp_reward':   todays_challenge.xp_reward
             } if todays_challenge else None
         })
+
+
+class AdminStatsView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        from django.utils import timezone
+        from apps.progress.models import Attempt, LessonProgress
+        from apps.gamification.models import UserBadge
+        from apps.content.models import Sign, Lesson
+        today = timezone.now().date()
+        return success_response({
+            'total_users':          User.objects.count(),
+            'active_today':         Attempt.objects.filter(
+                                        created_at__date=today
+                                    ).values('user').distinct().count(),
+            'total_attempts':       Attempt.objects.count(),
+            'total_signs':          Sign.objects.count(),
+            'total_lessons':        Lesson.objects.count(),
+            'total_badges_awarded': UserBadge.objects.count(),
+        })
+
 

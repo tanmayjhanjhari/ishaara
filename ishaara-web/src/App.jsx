@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Navigate, Outlet } from 'react-router-dom'
 import { useEffect } from 'react'
 import ProtectedRoute from './components/layout/ProtectedRoute'
+import { useAuthStore } from './store/authStore'
 
 // Pages
 import Landing      from './pages/Landing'
@@ -17,6 +18,12 @@ function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
   return null
+}
+
+function StaffRoute({ children }) {
+  const { user } = useAuthStore()
+  if (!user?.is_staff) return <Navigate to="/dashboard" replace />
+  return children ? children : <Outlet />
 }
 
 export default function App() {
@@ -36,9 +43,12 @@ export default function App() {
           <Route path="/lessons/:id"   element={<LessonPlayer />} />
           <Route path="/profile"       element={<Profile />} />
           <Route path="/leaderboard"   element={<Leaderboard />} />
-          <Route path="/admin"         element={<Admin />} />
+          <Route element={<StaffRoute />}>
+            <Route path="/admin"       element={<Admin />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>
   )
 }
+
