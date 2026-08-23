@@ -11,6 +11,7 @@ const INFERENCE_INTERVAL_MS = 80
 export function useSignScorer({
   sign,          // current sign object with reference_landmarks
   activeVariant = 'two',
+  signType = 'static',
   onScoreReady,  // callback: ({ score, is_success, rating }) => void
   onScoreUpdate  // callback: (smoothedScore) => void — for live meter
 }) {
@@ -39,6 +40,8 @@ export function useSignScorer({
   }, [sign?.id, activeVariant])
 
   const processFrame = useCallback(async (userVector) => {
+    if (signType === 'motion') return
+
     // Post-success cooldown — don't score until user dismisses overlay
     if (cooldownRef.current) return
 
@@ -135,7 +138,7 @@ export function useSignScorer({
     } else {
       holdStartRef.current = null
     }
-  }, [sign?.label, activeVariant, onScoreReady, onScoreUpdate])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sign?.label, activeVariant, signType, onScoreReady, onScoreUpdate])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetScorer = useCallback(() => {
     scoreWindowRef.current   = []

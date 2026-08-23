@@ -80,20 +80,28 @@ export default function LessonPlayer() {
   // ── Tutorial / Practice mode ──────────────────────────────────────────────
   // 'tutorial' = learning mode (TutorialPanel overlay visible, no scoring)
   // 'practice' = scoring mode (ONNX runs, score meter active)
-  const [mode, setMode]                     = useState('tutorial')
-  const [showTutorialPanel, setShowTutorialPanel] = useState(true)
+  const [mode, setMode]                     = useState(() => {
+    const autoTutorial = localStorage.getItem('ishaara_auto_tutorial') !== 'false'
+    return autoTutorial ? 'tutorial' : 'practice'
+  })
+  const [showTutorialPanel, setShowTutorialPanel] = useState(() => {
+    return localStorage.getItem('ishaara_auto_tutorial') !== 'false'
+  })
   const [activeVariant, setActiveVariant]   = useState('two')
 
   // When the sign changes, reset to tutorial mode automatically
   useEffect(() => {
-    setMode('tutorial')
-    setShowTutorialPanel(true)
+    const autoTutorial = localStorage.getItem('ishaara_auto_tutorial') !== 'false'
+    setMode(autoTutorial ? 'tutorial' : 'practice')
+    setShowTutorialPanel(autoTutorial)
     if (currentSign) {
       const signData = getSignData(currentSign.label)
       setActiveVariant(signData?.defaultHandForm || 'two')
     } else {
       setActiveVariant('two')
     }
+    attemptsForCurrentSign.current = 0
+    setShowSkipSuggestion(false)
     scorer.resetScorer()
     holdPercent.current = 0
     updateMeter(meterRef, 0)
@@ -116,6 +124,37 @@ export default function LessonPlayer() {
   const [overlayVisible, setOverlayVisible] = useState(false)
   const [overlayData, setOverlayData]       = useState(null)
   const [captureStatus, setCaptureStatus]   = useState(null)
+
+  const attemptsForCurrentSign = useRef(0)
+  const [showSkipSuggestion, setShowSkipSuggestion] = useState(false)
+
+  const renderDifficultyBadge = (difficulty) => {
+    if (difficulty === 1) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          Easy
+        </span>
+      )
+    }
+    if (difficulty === 2) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/25">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          Medium
+        </span>
+      )
+    }
+    if (difficulty === 3) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/25">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+          Challenging
+        </span>
+      )
+    }
+    return null
+  }
 
   // Feature 13 state
   const [feedbackTip, setFeedbackTip]   = useState(null)
@@ -150,6 +189,12 @@ export default function LessonPlayer() {
   // Score ready handler
   const handleScoreReady = useCallback(async (result) => {
     const { score, is_success, rating } = result
+
+    attemptsForCurrentSign.current += 1
+    if (attemptsForCurrentSign.current >= 5 && !is_success) {
+      setShowSkipSuggestion(true)
+    }
+
     const xpEarned = computeXP(score, currentSign?.xp_reward || 10)
 
     let attemptResponse = null
@@ -229,10 +274,18 @@ export default function LessonPlayer() {
     }
   }, [currentSign, postAttempt, enqueue, queryClient])
 
+  const handleMotionSignComplete = useCallback(async () => {
+    await handleScoreReady({ score: 65, is_success: true, rating: 'Good' })
+  }, [handleScoreReady])
+
+  const currentSignData = getSignData(currentSign?.label)
+  const signType = currentSignData?.type || 'static'
+
   // Scorer hook — always mounted, mode gate is in handleLandmarks
   const scorer = useSignScorer({
     sign:          currentSign,
     activeVariant,
+    signType,
     onScoreReady:  handleScoreReady,
     onScoreUpdate: handleScoreUpdate,
   })
@@ -242,6 +295,8 @@ export default function LessonPlayer() {
     scorer.resetScorer()
     setFeedbackTip(null)
     setIsPulsing(false)
+    attemptsForCurrentSign.current = 0
+    setShowSkipSuggestion(false)
     if (signIndex < signs.length - 1) {
       sessionStore.nextSign()
     } else {
@@ -568,6 +623,8 @@ export default function LessonPlayer() {
                           key={signItem.id}
                           disabled={!unlocked}
                           onClick={() => {
+                            attemptsForCurrentSign.current = 0
+                            setShowSkipSuggestion(false)
                             sessionStore.setSignIndex(idx)
                             scorer.resetScorer()
                           }}
@@ -668,9 +725,12 @@ export default function LessonPlayer() {
                       {getSignData(currentSign.label) && (
                         <div className="space-y-3">
                           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                            <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-1.5">
-                              Instruction
-                            </h4>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest">
+                                Instruction
+                              </h4>
+                              {renderDifficultyBadge(getSignData(currentSign.label)?.difficulty)}
+                            </div>
                             <p className="text-sm text-gray-200">
                               {getSignData(currentSign.label).instruction}
                             </p>
@@ -750,25 +810,108 @@ export default function LessonPlayer() {
                           <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
                             Active Sign
                           </span>
-                          <h3 className="text-2xl font-black text-white mt-0.5">
-                            {currentSign.label}
-                          </h3>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <h3 className="text-2xl font-black text-white">
+                              {currentSign.label}
+                            </h3>
+                            {renderDifficultyBadge(currentSignData?.difficulty)}
+                          </div>
                           <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                             Form this sign in front of the camera and hold steady for a split second.
                           </p>
                         </div>
                       </div>
 
-                      {/* Score Meter */}
-                      <ScoreMeter meterRef={meterRef} />
+                      {signType === 'motion' ? (
+                        <div className="bg-indigo-950/30 border border-indigo-500/30 rounded-xl p-4 select-none">
+                          <div className="flex items-start gap-3">
+                            <span className="text-3xl" role="img" aria-label="wave">👋</span>
+                            <div>
+                              <h4 className="text-sm font-semibold text-indigo-300">Motion Sign</h4>
+                              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                                This sign requires movement. Watch the tutorial then practice the motion.
+                              </p>
+                            </div>
+                          </div>
 
-                      {/* Live Hint */}
-                      <div className="hidden">
-                        <LiveHint hintRef={hintRef} />
-                      </div>
+                          <div className="mt-4 pt-3 border-t border-indigo-500/10">
+                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1.5">
+                              Steps reminder:
+                            </p>
+                            <ol className="list-decimal pl-4 space-y-1">
+                              {currentSignData?.steps?.map((step, idx) => (
+                                <li key={idx} className="text-xs text-gray-300 leading-normal">
+                                  {step}
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
 
-                      {/* Feedback Coaching Tip */}
-                      <FeedbackTip tip={feedbackTip} isVisible={!overlayVisible && !!feedbackTip} />
+                          <Button
+                            variant="primary"
+                            className="w-full mt-4 font-bold"
+                            onClick={handleMotionSignComplete}
+                          >
+                            I Practiced This Sign ✓
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Score Meter */}
+                          <ScoreMeter meterRef={meterRef} />
+
+                          {/* Camera Hint */}
+                          {currentSignData?.cameraHint && (
+                            <div className="flex items-center gap-1.5 mt-2 justify-center text-xs text-gray-400 italic">
+                              <span role="img" aria-label="camera">📷</span>
+                              <span>{currentSignData.cameraHint}</span>
+                            </div>
+                          )}
+
+                          {/* Live Hint */}
+                          <div className="hidden">
+                            <LiveHint hintRef={hintRef} />
+                          </div>
+
+                          {/* Feedback Coaching Tip */}
+                          <FeedbackTip tip={feedbackTip} isVisible={!overlayVisible && !!feedbackTip} />
+                        </>
+                      )}
+
+                      {/* Attempt Limit Skip Suggestion */}
+                      {showSkipSuggestion && !completedSignIds.has(currentSign.id) && (
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mt-4 text-center">
+                          <p className="text-xs text-amber-300 font-semibold mb-3">
+                            Having trouble? Skip and come back later.
+                          </p>
+                          <div className="flex gap-3">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="flex-1 font-bold text-xs"
+                              onClick={() => {
+                                attemptsForCurrentSign.current = 0
+                                setShowSkipSuggestion(false)
+                                handleSkip()
+                              }}
+                            >
+                              Skip Sign
+                            </Button>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              className="flex-1 font-bold text-xs"
+                              onClick={() => {
+                                attemptsForCurrentSign.current = 0
+                                setShowSkipSuggestion(false)
+                                scorer.resetScorer()
+                              }}
+                            >
+                              Try Again
+                            </Button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* If already completed, display next sign button in practice mode too */}
                       {completedSignIds.has(currentSign.id) && (

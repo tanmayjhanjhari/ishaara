@@ -2,10 +2,10 @@ import { normalizeLandmarks } from './normalize'
 import { REFERENCE_LANDMARKS } from '../data/referenceLandmarks'
 
 // Tunable constants
-export const SCORE_THRESHOLD  = 50   // minimum score to count as holding
-export const SUCCESS_THRESHOLD = 70  // minimum score to count as success
-export const HOLD_DURATION_MS  = 500 // ms to hold sign before trigger
-export const SMOOTH_WINDOW     = 10  // frames to smooth over
+export const SCORE_THRESHOLD  = 35   // minimum score to count as holding
+export const SUCCESS_THRESHOLD = 55  // minimum score to count as success
+export const HOLD_DURATION_MS  = 350 // ms to hold sign before trigger
+export const SMOOTH_WINDOW     = 8   // frames to smooth over
 export const DISTANCE_SCALE    = 200 // maps distance to score
 
 /**

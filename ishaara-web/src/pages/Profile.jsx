@@ -1,6 +1,6 @@
 import PageWrapper from '../components/layout/PageWrapper'
 import HandConstellation from '../components/ui/HandConstellation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Zap, Flame, Star, Award, TrendingUp, Calendar, Lock } from 'lucide-react'
 import { Card, StatTile, ProgressBar, Spinner, SkeletonLoader } from '../components/ui'
 import { useAuthStore } from '../store/authStore'
@@ -59,6 +59,15 @@ export default function Profile() {
   const { data: stats, isLoading: statsLoading } = useMyStats()
   const { data: progressSummary, isLoading: progressLoading } = useProgressSummary()
   const { data: badgesData, isLoading: badgesLoading } = useBadges()
+
+  const [autoTutorial, setAutoTutorial] = useState(() => {
+    return localStorage.getItem('ishaara_auto_tutorial') !== 'false'
+  })
+
+  const handleToggleAutoTutorial = (val) => {
+    localStorage.setItem('ishaara_auto_tutorial', val ? 'true' : 'false')
+    setAutoTutorial(val)
+  }
 
   useEffect(() => {
     if (window.location.hash === '#badges') {
@@ -185,6 +194,31 @@ export default function Profile() {
               </div>
             ))}
           </div>
+        </Card>
+      </div>
+
+      {/* ── Preferences ── */}
+      <div className="mb-12 animate-fade-up" style={{ animationDelay: '0.18s' }}>
+        <h2 className="font-outfit font-bold text-xl text-text-primary mb-4">Preferences</h2>
+        <Card className="p-5 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-white text-sm">Show tutorial before each sign</h3>
+            <p className="text-xs text-text-muted mt-1">
+              Automatically display the hand layout guide when moving to a new sign.
+            </p>
+          </div>
+          <button
+            onClick={() => handleToggleAutoTutorial(!autoTutorial)}
+            className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none flex items-center relative ${
+              autoTutorial ? 'bg-primary' : 'bg-gray-700'
+            }`}
+          >
+            <div
+              className={`w-4 h-4 rounded-full bg-white shadow-md transform duration-200 ${
+                autoTutorial ? 'translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </Card>
       </div>
 
