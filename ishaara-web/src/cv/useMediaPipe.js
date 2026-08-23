@@ -40,8 +40,9 @@ export function useMediaPipe({
   onLandmarks,
   enabled = true
 }) {
-  const rafRef        = useRef(null)
-  const isRunningRef  = useRef(false)
+  const rafRef           = useRef(null)
+  const isRunningRef     = useRef(false)
+  const prevLandmarksRef = useRef([])
   const [isLoading,   setIsLoading]   = useState(true)
   const [isDetecting, setIsDetecting] = useState(false)
 
@@ -88,17 +89,33 @@ export function useMediaPipe({
         const hands = results?.landmarks || []
         const handednessList = results?.handedness || []
 
-        if (ctx) {
-          clearCanvas(ctx, W, H)
+        // Canvas optimization: only clear and redraw if landmarks changed
+        const prev = prevLandmarksRef.current || []
+        let changed = false
+        if (hands.length !== prev.length) {
+          changed = true
+        } else if (hands.length > 0) {
+          for (let i = 0; i < hands.length; i++) {
+            if (hands[i][0]?.x !== prev[i]?.[0]?.x || hands[i][0]?.y !== prev[i]?.[0]?.y) {
+              changed = true
+              break
+            }
+          }
+        }
+        prevLandmarksRef.current = hands
+
+        if (changed || (prev.length === 0 && hands.length === 0)) {
+          if (ctx) {
+            clearCanvas(ctx, W, H)
+            if (hands.length > 0) {
+              hands.forEach(handLandmarks => {
+                drawLandmarks(ctx, handLandmarks, W, H)
+              })
+            }
+          }
         }
 
         if (hands.length > 0) {
-          if (ctx) {
-            hands.forEach(handLandmarks => {
-              drawLandmarks(ctx, handLandmarks, W, H)
-            })
-          }
-
           let leftScreenHand = null
           let rightScreenHand = null
 

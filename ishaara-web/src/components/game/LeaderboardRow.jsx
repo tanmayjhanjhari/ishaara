@@ -1,7 +1,8 @@
+import { memo } from 'react'
 import { Avatar } from '../ui'
 import LevelBadge from './LevelBadge'
 
-export default function LeaderboardRow({ entry, isCurrentUser }) {
+const LeaderboardRow = memo(function LeaderboardRow({ entry, isCurrentUser }) {
   if (!entry) return null
 
   const getRankEmojiOrText = (rank) => {
@@ -53,4 +54,6 @@ export default function LeaderboardRow({ entry, isCurrentUser }) {
       </div>
     </div>
   )
-}
+})
+
+export default LeaderboardRow

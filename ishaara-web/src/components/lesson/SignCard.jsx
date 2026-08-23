@@ -1,6 +1,7 @@
+import { memo } from 'react'
 import { Card } from '../ui'
 
-export default function SignCard({ sign, size = 'lg' }) {
+const SignCard = memo(function SignCard({ sign, size = 'lg' }) {
   if (!sign) return null
 
   const isLg = size === 'lg'
@@ -63,4 +64,6 @@ export default function SignCard({ sign, size = 'lg' }) {
       )}
     </Card>
   )
-}
+})
+
+export default SignCard

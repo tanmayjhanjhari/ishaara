@@ -88,50 +88,49 @@ class DashboardView(APIView):
         streak, _ = Streak.objects.get_or_create(user=user)
         from apps.content.models import Lesson
         from services.xp_service import compute_level, LEVEL_THRESHOLDS
-        from django.db.models import Avg, Count, Sum, IntegerField
+        from django.db.models import Avg, Count, Sum, IntegerField, Q
         from django.utils import timezone
         from datetime import timedelta
 
         today      = timezone.now().date()
         week_ago   = timezone.now() - timedelta(days=7)
 
-        # Recent attempts (last 5)
-        recent_attempts = (
+        # Combine Attempt queries: Fetch all user attempts in a single query
+        all_user_attempts = list(
             Attempt.objects
-            .filter(user=user)
+            .filter(Q(user=user))
             .select_related('sign')
-            .order_by('-created_at')[:5]
+            .order_by('-created_at')
         )
 
-        # Weak signs (success rate < 0.6, attempts >= 3)
-        from django.db.models import Case, When, Value
+        # 1. Recent attempts (last 5)
+        recent_attempts = all_user_attempts[:5]
 
-        weak_signs_qs = (
-            Attempt.objects
-            .filter(user=user)
-            .values('sign__slug', 'sign__label')
-            .annotate(
-                total=Count('id'),
-                successes=Sum(Case(
-                    When(is_success=True, then=Value(1)),
-                    default=Value(0),
-                    output_field=IntegerField()
-                ))
-            )
-            .filter(total__gte=3)
-            .order_by('sign__label')
-        )
+        # 2. Total attempts today
+        attempts_today = sum(1 for a in all_user_attempts if a.created_at.date() == today)
+
+        # 3. Weak signs (success rate < 0.6, attempts >= 3)
+        sign_stats = {}
+        for a in all_user_attempts:
+            slug = a.sign.slug
+            label = a.sign.label
+            if slug not in sign_stats:
+                sign_stats[slug] = {'label': label, 'total': 0, 'successes': 0}
+            sign_stats[slug]['total'] += 1
+            if a.is_success:
+                sign_stats[slug]['successes'] += 1
 
         weak_signs = []
-        for s in weak_signs_qs:
-            rate = s['successes'] / s['total'] if s['total'] > 0 else 0
-            if rate < 0.6:
-                weak_signs.append({
-                    'slug':         s['sign__slug'],
-                    'label':        s['sign__label'],
-                    'success_rate': round(rate * 100),
-                    'attempts':     s['total']
-                })
+        for slug, stats in sign_stats.items():
+            if stats['total'] >= 3:
+                rate = stats['successes'] / stats['total']
+                if rate < 0.6:
+                    weak_signs.append({
+                        'slug':         slug,
+                        'label':        stats['label'],
+                        'success_rate': round(rate * 100),
+                        'attempts':     stats['total']
+                    })
         weak_signs = sorted(weak_signs, key=lambda x: x['success_rate'])[:3]
 
         # Lesson progress
@@ -142,18 +141,12 @@ class DashboardView(APIView):
             .order_by('-updated_at')[:3]
         )
 
-        # Weekly XP
+        # Weekly XP query using Q to reduce round trips and filter cleanly
         weekly_xp = (
             XPEvent.objects
-            .filter(user=user, created_at__gte=week_ago)
+            .filter(Q(user=user) & Q(created_at__gte=week_ago))
             .aggregate(total=Sum('amount'))['total'] or 0
         )
-
-        # Total attempts today
-        attempts_today = Attempt.objects.filter(
-            user=user,
-            created_at__date=today
-        ).count()
 
         # Badges recently earned
         recent_badges = (

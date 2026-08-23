@@ -40,6 +40,7 @@ export default function Avatar({ src, name = '', size = 'md', className = '' }) 
       <img
         src={src}
         alt={name || 'Avatar'}
+        loading="lazy"
         className={`${baseClasses} object-cover border-border`}
         onError={() => setError(true)}
       />

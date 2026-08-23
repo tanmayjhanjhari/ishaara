@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Card, Badge, ProgressBar } from '../ui'
 import DifficultyBadge from './DifficultyBadge'
 import { CheckCircle2, Clock } from 'lucide-react'
@@ -14,7 +15,7 @@ const PROGRESS_VALUE = {
   completed:   100,
 }
 
-export default function LessonCard({ lesson, onClick }) {
+const LessonCard = memo(function LessonCard({ lesson, onClick }) {
   const status        = lesson.user_progress_status || 'not_started'
   const progressValue = PROGRESS_VALUE[status] ?? 0
   const progressColor = status === 'completed' ? 'success' : 'primary'
@@ -85,4 +86,6 @@ export default function LessonCard({ lesson, onClick }) {
       <ProgressBar value={progressValue} size="sm" color={progressColor} />
     </Card>
   )
-}
+})
+
+export default LessonCard

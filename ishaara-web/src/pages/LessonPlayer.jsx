@@ -273,7 +273,7 @@ export default function LessonPlayer() {
       attemptResponse.badges_earned.forEach(badge => enqueue({ type: 'badge', badge }))
       queryClient.invalidateQueries({ queryKey: ['badges'] })
     }
-  }, [currentSign, postAttempt, enqueue, queryClient])
+  }, [currentSign, lesson, postAttempt, enqueue, queryClient])
 
   const handleMotionSignComplete = useCallback(async () => {
     await handleScoreReady({ score: 65, is_success: true, rating: 'Good' })

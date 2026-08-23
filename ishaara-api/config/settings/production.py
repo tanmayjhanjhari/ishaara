@@ -23,3 +23,10 @@ SECURE_SSL_REDIRECT = True
 SECURE_HSTS_SECONDS = 31536000
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
+# Insert GZipMiddleware after SecurityMiddleware
+if 'django.middleware.security.SecurityMiddleware' in MIDDLEWARE:
+    idx = MIDDLEWARE.index('django.middleware.security.SecurityMiddleware')
+    MIDDLEWARE.insert(idx + 1, 'django.middleware.gzip.GZipMiddleware')
+else:
+    MIDDLEWARE.insert(0, 'django.middleware.gzip.GZipMiddleware')

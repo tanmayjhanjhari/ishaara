@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Card } from '../ui'
 
 function formatTimeAgo(isoString) {
@@ -10,7 +11,7 @@ function formatTimeAgo(isoString) {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-export default function RecentActivityFeed({ attempts = [] }) {
+const RecentActivityFeed = memo(function RecentActivityFeed({ attempts = [] }) {
   const getScoreChipClass = (score) => {
     if (score >= 70) return 'bg-green-900/50 text-green-400 border border-green-700/30'
     if (score >= 50) return 'bg-amber-900/50 text-amber-400 border border-amber-700/30'
@@ -67,4 +68,6 @@ export default function RecentActivityFeed({ attempts = [] }) {
       </div>
     </Card>
   )
-}
+})
+
+export default RecentActivityFeed

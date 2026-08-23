@@ -1,7 +1,8 @@
+import { memo } from 'react'
 import { Card, Button } from '../ui'
 import { Link, useNavigate } from 'react-router-dom'
 
-export default function WeakSignsWidget({ signs = [] }) {
+const WeakSignsWidget = memo(function WeakSignsWidget({ signs = [] }) {
   const navigate = useNavigate()
 
   return (
@@ -59,4 +60,6 @@ export default function WeakSignsWidget({ signs = [] }) {
       )}
     </Card>
   )
-}
+})
+
+export default WeakSignsWidget

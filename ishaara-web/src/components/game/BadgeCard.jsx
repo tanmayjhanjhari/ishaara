@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Card } from '../ui'
 
 const formatDate = (isoString) => {
@@ -6,7 +7,7 @@ const formatDate = (isoString) => {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 }
 
-export default function BadgeCard({ badge, isEarned = true, onClick }) {
+const BadgeCard = memo(function BadgeCard({ badge, isEarned = true, onClick }) {
   if (isEarned) {
     return (
       <div className="cursor-pointer group" onClick={onClick}>
@@ -52,4 +53,6 @@ export default function BadgeCard({ badge, isEarned = true, onClick }) {
       </div>
     </Card>
   )
-}
+})
+
+export default BadgeCard
