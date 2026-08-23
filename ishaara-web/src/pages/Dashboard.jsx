@@ -95,9 +95,10 @@ export default function Dashboard() {
 
       {/* Progression & Habit Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12 animate-fade-up" style={{ animationDelay: '0.15s' }}>
-        {/* XP bar */}
-        <div className="lg:col-span-8">
-          <Card className="h-full flex flex-col justify-between">
+        {/* Left column: Level Progress & Leaderboard Preview */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          {/* Level Progress */}
+          <Card className="p-5 flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-baseline mb-4">
                 <div className="flex items-center gap-2">
@@ -114,9 +115,86 @@ export default function Dashboard() {
               {isLoading ? '…' : `${(xpForNext - xpProgress).toLocaleString()} XP to Level ${level + 1}`}
             </div>
           </Card>
+
+          {/* LeagueCard (Leaderboard preview) */}
+          <Card className="p-5 flex flex-col justify-between bg-gradient-to-br from-space-light/10 to-indigo-950/20 border border-white/5 shadow-lg">
+            <div>
+              <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                <span className="text-xs font-bold tracking-widest text-text-muted uppercase flex items-center gap-1.5">
+                  <span>🏆</span> Weekly League
+                </span>
+                {myRank ? (
+                  <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                    Rank #{myRank}
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
+                    Unranked
+                  </span>
+                )}
+              </div>
+
+              {/* User weekly status */}
+              <div className="flex items-baseline justify-between mb-4">
+                {myRank ? (
+                  <div className="flex flex-col">
+                    <span className="text-2xl font-black text-white font-outfit">
+                      #{myRank}
+                    </span>
+                    <span className="text-xs text-gray-400 mt-0.5">
+                      {lbData?.current_user?.weekly_xp?.toLocaleString() || 0} XP
+                    </span>
+                    {lbData?.current_user?.xp_to_next_rank > 0 && (
+                      <span className="text-[10px] text-indigo-400 font-bold mt-1">
+                        +{lbData.current_user.xp_to_next_rank} XP to rank up
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col">
+                    <span className="text-lg font-bold text-gray-500 font-outfit">
+                      Unranked
+                    </span>
+                    <span className="text-xs text-gray-400 mt-0.5">
+                      Practice to join the leaderboard
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Top 3 preview */}
+              {lbData?.entries && lbData.entries.length > 0 && (
+                <div className="space-y-2 mt-3 pt-3 border-t border-white/5">
+                  <span className="text-[9px] font-black tracking-wider uppercase text-gray-500 block mb-1">Top Learners</span>
+                  {lbData.entries.slice(0, 3).map((entry, idx) => {
+                    const rankEmojis = ['🥇', '🥈', '🥉']
+                    return (
+                      <div key={entry.user_id} className="flex justify-between items-center text-xs font-semibold">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="shrink-0">{rankEmojis[idx]}</span>
+                          <span className="text-gray-300 truncate">{entry.display_name}</span>
+                        </div>
+                        <span className="text-gray-500 font-mono font-bold shrink-0">{entry.weekly_xp} XP</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/5 flex justify-end">
+              <Link
+                to="/leaderboard"
+                className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+              >
+                <span>View Full Leaderboard</span>
+                <ArrowRight size={12} className="stroke-[2.5px]" />
+              </Link>
+            </div>
+          </Card>
         </div>
 
-        {/* Streak & Badge Summary */}
+        {/* Right column: Streak & Badge Summary */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           <StreakCard
             currentStreak={streakData?.current_streak ?? streak}

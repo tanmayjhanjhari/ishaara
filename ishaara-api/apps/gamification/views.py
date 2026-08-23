@@ -17,59 +17,100 @@ class LeaderboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Rank by total XP (profile.xp_total), top 25
-        profiles = (
-            Profile.objects
-            .select_related('user', 'user__streak')
-            .order_by('-xp_total')[:25]
+        from django.db.models import Sum
+        from django.utils import timezone
+        from datetime import timedelta
+        from apps.gamification.models import XPEvent
+        from apps.users.models import User
+
+        # Compute start of current week (Monday 00:00 UTC)
+        now        = timezone.now()
+        days_since = now.weekday()  # 0=Monday, 6=Sunday
+        week_start = (now - timedelta(days=days_since)).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+
+        # Time until next Monday
+        next_monday    = week_start + timedelta(days=7)
+        resets_in_secs = int((next_monday - now).total_seconds())
+
+        # Aggregate weekly XP per user
+        weekly_xp = (
+            XPEvent.objects
+            .filter(created_at__gte=week_start)
+            .values('user_id')
+            .annotate(weekly_xp=Sum('amount'))
+            .order_by('-weekly_xp')
         )
 
-        leaderboard = []
-        my_rank = None
-        my_entry = None
+        # Get top 20
+        top20_user_ids = [str(e['user_id']) for e in weekly_xp[:20]]
+        top20_xp_map   = {str(e['user_id']): e['weekly_xp'] for e in weekly_xp[:20]}
 
-        for rank, profile in enumerate(profiles, start=1):
-            user = profile.user
-            streak = getattr(user, 'streak', None)
-            is_me = user.id == request.user.id
+        # Fetch user details for top 20
+        users = (
+            User.objects
+            .filter(id__in=top20_user_ids)
+            .select_related('profile')
+        )
+        user_map = {str(u.id): u for u in users}
 
-            entry = {
-                'rank': rank,
-                'user_id': str(user.id),
-                'username': user.username,
-                'display_name': profile.display_name or user.username,
-                'xp': profile.xp_total,
-                'level': profile.level,
-                'streak': streak.current_streak if streak else 0,
-                'is_me': is_me,
-            }
-            leaderboard.append(entry)
+        # Build ranked entries
+        entries = []
+        for rank, user_id in enumerate(top20_user_ids, 1):
+            u = user_map.get(user_id)
+            if not u:
+                continue
+            display = (u.profile.display_name or u.username
+                       if hasattr(u, 'profile') else u.username)
+            entries.append({
+                'rank':            rank,
+                'user_id':         user_id,
+                'display_name':    display,
+                'level':           u.profile.level if hasattr(u, 'profile') else 1,
+                'weekly_xp':       top20_xp_map[user_id],
+                'is_current_user': user_id == str(request.user.id)
+            })
 
-            if is_me:
-                my_rank = rank
-                my_entry = entry
+        # Current user rank (may be outside top 20)
+        all_user_ids = [str(e['user_id']) for e in weekly_xp]
+        current_user_xp = 0
+        current_rank    = None
 
-        # If current user not in top 25, compute their rank
-        if my_rank is None:
-            my_profile = request.user.profile
-            my_rank = Profile.objects.filter(xp_total__gt=my_profile.xp_total).count() + 1
-            my_streak = getattr(request.user, 'streak', None)
-            my_entry = {
-                'rank': my_rank,
-                'user_id': str(request.user.id),
-                'username': request.user.username,
-                'display_name': my_profile.display_name or request.user.username,
-                'xp': my_profile.xp_total,
-                'level': my_profile.level,
-                'streak': my_streak.current_streak if my_streak else 0,
-                'is_me': True,
-            }
+        for i, e in enumerate(weekly_xp):
+            if str(e['user_id']) == str(request.user.id):
+                current_rank    = i + 1
+                current_user_xp = e['weekly_xp']
+                break
+
+        # XP needed to reach next rank
+        xp_to_next = 0
+        if current_rank and current_rank > 1:
+          rank_above_xp = None
+          for e in weekly_xp:
+              if str(e['user_id']) != str(request.user.id):
+                  try:
+                      idx = all_user_ids.index(str(e['user_id']))
+                      if idx == current_rank - 2:
+                          rank_above_xp = e['weekly_xp']
+                          break
+                  except ValueError:
+                      pass
+          if rank_above_xp:
+              xp_to_next = rank_above_xp - current_user_xp + 1
+
+        current_user_data = {
+            'rank':           current_rank,
+            'weekly_xp':      current_user_xp,
+            'xp_to_next_rank': xp_to_next
+        }
 
         return success_response({
-            'leaderboard': leaderboard,
-            'my_rank': my_rank,
-            'my_entry': my_entry,
+            'week_start':         week_start.date().isoformat(),
+            'resets_in_seconds':  resets_in_secs,
+            'entries':            entries,
+            'current_user':       current_user_data
         })
+
 
 
 class MyStatsView(APIView):

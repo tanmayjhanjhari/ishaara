@@ -13,7 +13,7 @@ import StreakCard from '../game/StreakCard'
 const NAV = [
   { to: '/dashboard',   label: 'Home',    Icon: LayoutDashboard },
   { to: '/lessons',     label: 'Journey', Icon: BookOpen },
-  { to: '/leaderboard', label: 'League',  Icon: Trophy },
+  { to: '/leaderboard', label: '🏆 Leaderboard',  Icon: Trophy },
   { to: '/profile',     label: 'Profile', Icon: User },
 ]
 

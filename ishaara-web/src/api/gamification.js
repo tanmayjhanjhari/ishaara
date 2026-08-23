@@ -25,8 +25,10 @@ export const useStreak = (options = {}) =>
 export const useLeaderboard = () =>
   useQuery({
     queryKey: ['leaderboard'],
-    queryFn: () => client.get('/api/v1/leaderboard/').then(r => r.data.data),
-    staleTime: 5 * 60 * 1000,
+    queryFn: () =>
+      client.get('/api/v1/leaderboard/').then(r => r.data.data),
+    staleTime: 3 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000
   })
 
 export const useMyStats = () =>
