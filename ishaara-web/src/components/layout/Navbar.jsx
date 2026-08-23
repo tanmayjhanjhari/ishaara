@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Menu, X, Zap, Flame, LayoutDashboard, BookOpen, User, Trophy, LogOut, ChevronDown } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
+import { useSessionStore } from '../../store/sessionStore'
+import { useStreakStore } from '../../store/streakStore'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '../ui'
 import { getDisplayName } from '../../utils/user'
 import client from '../../api/client'
@@ -19,6 +22,7 @@ const NAV = [
 
 export default function Navbar() {
   const { isAuthenticated, logout: storeLogout, user } = useAuthStore()
+  const queryClient = useQueryClient()
   const { data: xpData } = useXPData({ enabled: !!isAuthenticated })
   const { data: streakData } = useStreak({ enabled: !!isAuthenticated })
   const [open,        setOpen]        = useState(false)
@@ -44,6 +48,9 @@ export default function Navbar() {
     } catch (e) {
       // Ignore API error — still logout locally
     } finally {
+      queryClient.clear()
+      useSessionStore.getState().resetSession()
+      useStreakStore.setState({ currentStreak: 0, longestStreak: 0, lastActiveDate: null, isStreakDay: false })
       storeLogout()
       navigate('/login')
     }

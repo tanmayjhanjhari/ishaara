@@ -96,13 +96,18 @@ export function useMediaPipe({
           changed = true
         } else if (hands.length > 0) {
           for (let i = 0; i < hands.length; i++) {
-            if (hands[i][0]?.x !== prev[i]?.[0]?.x || hands[i][0]?.y !== prev[i]?.[0]?.y) {
+            const h = hands[i]
+            const p = prev[i]
+            if (!p || !h[0] || !p[0] || h[0].x !== p[0].x || h[0].y !== p[0].y) {
               changed = true
               break
             }
           }
         }
-        prevLandmarksRef.current = hands
+        // Save deep copies of the wrist coordinates to prevent in-place mutation reference issues
+        prevLandmarksRef.current = hands.map(h => [
+          { x: h[0]?.x ?? 0, y: h[0]?.y ?? 0 }
+        ])
 
         if (changed || (prev.length === 0 && hands.length === 0)) {
           if (ctx) {
