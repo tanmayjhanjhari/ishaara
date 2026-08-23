@@ -112,8 +112,12 @@ export function useSignScorer({
     // Push to live score meter
     onScoreUpdate?.(smoothed)
 
+    const STRICT_SIGNS = ['M', 'N', 'A', 'S', 'T']
+    const isStrictSign = STRICT_SIGNS.includes(sign?.label?.toUpperCase())
+    const threshold    = isStrictSign ? 55 : SCORE_THRESHOLD
+
     // Hold detection — only trigger once per attempt
-    if (smoothed >= SCORE_THRESHOLD) {
+    if (smoothed >= threshold) {
       if (!holdStartRef.current) {
         holdStartRef.current = Date.now()
       }

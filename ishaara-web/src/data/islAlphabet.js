@@ -227,13 +227,14 @@ export const ISL_ALPHABET = {
     type: 'static',
     difficulty: 2,
     instruction: 'Open your non-dominant hand flat, palm up. Place the tips of your dominant index and middle fingers together flat onto the non-dominant palm.',
-    tip: 'The two dominant fingers represent the two legs of the letter N.',
-    watchOut: 'Only use the index and middle fingers of your dominant hand. Keep the ring and pinky fingers curled.',
+    cameraHint: 'Show palm facing camera — count the fingers clearly: only TWO fingers fold over',
+    watchOut: 'M uses THREE fingers, N uses only TWO — focus on finger count',
     steps: [
-      'Open your non-dominant hand flat, palm facing up.',
-      'Extend the index and middle fingers of your dominant hand side-by-side.',
-      'Place the tips of these two dominant fingers onto the non-dominant palm.',
-      'Hold both hands steady.'
+      'Make a loose fist with palm facing the camera',
+      'Extend your index finger and fold it over your thumb',
+      'Extend your middle finger and fold it over your thumb too',
+      'Only TWO fingers cover the thumb — ring and pinky stay down',
+      'Hold steady — palm slightly facing camera'
     ]
   },
   O: {

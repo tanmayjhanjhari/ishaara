@@ -9,7 +9,7 @@ export const useSessionStore = create((set, get) => ({
   startLesson: (lesson) => set({
     lessonId:  lesson.id,
     signs:     lesson.signs,
-    signIndex: 0,
+    signIndex: lesson.startIndex || 0,
     scores:    []
   }),
 

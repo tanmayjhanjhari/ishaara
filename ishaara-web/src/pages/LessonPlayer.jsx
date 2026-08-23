@@ -201,6 +201,7 @@ export default function LessonPlayer() {
     try {
       attemptResponse = await postAttempt.mutateAsync({
         sign_id:    currentSign.id,
+        lesson_id:  lesson?.id,
         score,
         is_success,
       })
@@ -373,13 +374,13 @@ export default function LessonPlayer() {
   // Start lesson when data arrives
   useEffect(() => {
     if (lesson && lesson.signs?.length > 0 && sessionStore.lessonId !== lesson.id) {
-      sessionStore.startLesson(lesson)
-      
-      // Auto-resume at the first uncompleted sign
-      const firstUncompletedIndex = lesson.signs.findIndex(s => !s.is_completed)
-      if (firstUncompletedIndex > 0) {
-        sessionStore.setSignIndex(firstUncompletedIndex)
-      }
+      const firstIncomplete = lesson.signs.findIndex(s => !s.is_completed)
+      const startIndex = firstIncomplete >= 0 ? firstIncomplete : 0
+
+      sessionStore.startLesson({
+        ...lesson,
+        startIndex
+      })
       
       completeCalled.current = false
       setSignResults([])
@@ -419,7 +420,10 @@ export default function LessonPlayer() {
   function handlePracticeAgain() {
     if (lesson) {
       setSignResults([])
-      sessionStore.startLesson(lesson)
+      sessionStore.startLesson({
+        ...lesson,
+        startIndex: 0
+      })
       completeCalled.current = false
       setCompleteResult(null)
     }

@@ -23,6 +23,8 @@ class CreateAttemptSerializer(serializers.Serializer):
     sign_id    = serializers.UUIDField()
     score      = serializers.FloatField(min_value=0, max_value=100)
     is_success = serializers.BooleanField()
+    lesson_id  = serializers.UUIDField(required=False, allow_null=True)
+
 
 
 class LessonProgressSerializer(serializers.ModelSerializer):

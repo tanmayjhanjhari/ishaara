@@ -42,3 +42,21 @@ class LessonProgress(models.Model):
 
     def __str__(self):
         return f'{self.user} → {self.lesson.title}: {self.status}'
+
+
+class SignProgress(models.Model):
+    user        = models.ForeignKey(settings.AUTH_USER_MODEL,
+                    on_delete=models.CASCADE, related_name='sign_progress')
+    sign        = models.ForeignKey('content.Sign',
+                    on_delete=models.CASCADE)
+    lesson      = models.ForeignKey('content.Lesson',
+                    on_delete=models.CASCADE)
+    is_completed = models.BooleanField(default=False)
+    best_score   = models.FloatField(default=0)
+    attempts     = models.IntegerField(default=0)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('user', 'sign', 'lesson')]
+

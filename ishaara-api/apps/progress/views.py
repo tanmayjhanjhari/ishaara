@@ -38,6 +38,20 @@ class AttemptCreateView(APIView):
                 score=data['score'],
                 is_success=data['is_success'],
             )
+            
+            lesson_id = data.get('lesson_id')
+            if lesson_id:
+                from .models import SignProgress
+                sp, _ = SignProgress.objects.get_or_create(
+                    user=user, sign=sign, lesson_id=lesson_id)
+                sp.attempts += 1
+                if data['score'] > sp.best_score:
+                    sp.best_score = data['score']
+                if data['is_success'] and not sp.is_completed:
+                    sp.is_completed = True
+                    sp.completed_at = timezone.now()
+                sp.save()
+
             xp_to_award = xp_service.compute_xp_for_attempt(
                 data['score'], sign.xp_reward)
             xp_result = xp_service.award_xp(
@@ -55,6 +69,7 @@ class AttemptCreateView(APIView):
             'streak_updated': streak_result['streak_updated'],
             'badges_earned':  BadgeSerializer(badges_earned, many=True).data,
         }, status=201)
+
 
 
 class AttemptListView(APIView):

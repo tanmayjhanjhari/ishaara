@@ -230,6 +230,28 @@ export default function TutorialPanel({
                 ))}
               </div>
             </div>
+
+            {/* Similar signs warning box */}
+            {['M', 'N', 'A', 'S', 'T'].includes(letter) && (
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                borderRadius: 8,
+                padding: 10,
+                marginTop: 12
+              }}>
+                <p style={{ color: '#fbbf24', fontSize: 11, fontWeight: 600, margin: 0 }}>
+                  SIMILAR SIGNS — PAY ATTENTION
+                </p>
+                <p style={{ color: '#d97706', fontSize: 11, marginTop: 4, marginBottom: 0 }}>
+                  {letter === 'N' && 'N = 2 fingers over thumb. M = 3 fingers over thumb.'}
+                  {letter === 'M' && 'M = 3 fingers over thumb. N = 2 fingers over thumb.'}
+                  {letter === 'A' && 'A = thumb beside fist. S = thumb over fingers.'}
+                  {letter === 'S' && 'S = thumb over fingers. A = thumb beside fist.'}
+                  {letter === 'T' && 'T = thumb between index and middle fingers.'}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}

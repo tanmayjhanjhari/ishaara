@@ -46,7 +46,24 @@ class LessonDetailView(APIView):
             pk=pk, is_published=True)
         serializer = LessonDetailSerializer(
             lesson, context={'request': request})
-        return success_response(serializer.data)
+        
+        data = serializer.data
+        if request.user.is_authenticated:
+            from apps.progress.models import SignProgress
+            completed_sign_ids = set(
+                SignProgress.objects.filter(
+                    user=request.user,
+                    lesson=lesson,
+                    is_completed=True
+                ).values_list('sign_id', flat=True)
+            )
+            completed_sign_str_ids = {str(x) for x in completed_sign_ids}
+            if 'signs' in data:
+                for sign in data['signs']:
+                    sign['is_completed'] = sign['id'] in completed_sign_str_ids
+
+        return success_response(data)
+
 
 class AdminSignListView(APIView):
     permission_classes = [IsStaffUser]

@@ -134,6 +134,33 @@ X_test  = np.load('data/splits/X_test.npy')
 y_train = np.load('data/splits/y_train.npy')
 y_test  = np.load('data/splits/y_test.npy')
 
+le = joblib.load('models/label_encoder.pkl')
+
+def augment_confusable_signs(X, y, le, target_labels, factor=5):
+    # Extra augmentation for signs that are easily confused
+    augmented_X = []
+    augmented_y = []
+    for label in target_labels:
+        idx = list(le.classes_).index(label)
+        mask = (y == idx)
+        X_label = X[mask]
+        for _ in range(factor):
+            noise   = np.random.normal(0, 0.012, X_label.shape).astype(np.float32)
+            augmented_X.append(X_label + noise)
+            augmented_y.append(np.full(len(X_label), idx))
+    if augmented_X:
+        return (np.vstack([X] + augmented_X),
+                np.concatenate([y] + augmented_y))
+    return X, y
+
+# Extra augmentation for commonly confused signs
+X_train, y_train = augment_confusable_signs(
+    X_train, y_train, le,
+    target_labels=['M', 'N', 'A', 'S', 'T'],
+    factor=5
+)
+print(f"After confusion augmentation: {X_train.shape}")
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from lightgbm import LGBMClassifier
