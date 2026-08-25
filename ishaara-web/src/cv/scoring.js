@@ -114,28 +114,86 @@ export function computeScore(userVector, referenceVector) {
   if (!userVector || !referenceVector) return 0
   if (userVector.length !== 126 || referenceVector.length !== 126) return 0
 
-  // Check if reference is two-handed (i.e. has any non-zero values in right hand landmarks)
-  let isTwoHanded = false
+  // Check if reference has non-zero right hand coordinates
+  let refRightActive = false
   for (let i = 63; i < 126; i++) {
     if (referenceVector[i] !== 0) {
-      isTwoHanded = true
+      refRightActive = true
+      break
+    }
+  }
+  // Check if reference has non-zero left hand coordinates
+  let refLeftActive = false
+  for (let i = 0; i < 63; i++) {
+    if (referenceVector[i] !== 0) {
+      refLeftActive = true
       break
     }
   }
 
-  let totalDistance = 0
-  const numLandmarks = isTwoHanded ? 42 : 21
+  const isTwoHanded = refLeftActive && refRightActive
+  let score = 0
 
-  for (let i = 0; i < numLandmarks; i++) {
-    const idx = i * 3
-    const dx  = userVector[idx]     - referenceVector[idx]
-    const dy  = userVector[idx + 1] - referenceVector[idx + 1]
-    const dz  = userVector[idx + 2] - referenceVector[idx + 2]
-    totalDistance += Math.sqrt(dx*dx + dy*dy + dz*dz)
+  if (isTwoHanded) {
+    let totalDistance = 0
+    for (let i = 0; i < 42; i++) {
+      const idx = i * 3
+      const dx  = userVector[idx]     - referenceVector[idx]
+      const dy  = userVector[idx + 1] - referenceVector[idx + 1]
+      const dz  = userVector[idx + 2] - referenceVector[idx + 2]
+      totalDistance += Math.sqrt(dx*dx + dy*dy + dz*dz)
+    }
+    const meanDistance = totalDistance / 42
+    score = Math.max(0, 100 - (meanDistance * DISTANCE_SCALE))
+  } else {
+    // One-handed sign: extract the active hand from user and reference
+    let userActive = null
+    let refActive = null
+
+    // User's active hand is the one that is non-zero
+    let userLeftActive = false
+    for (let i = 0; i < 63; i++) {
+      if (userVector[i] !== 0) {
+        userLeftActive = true
+        break
+      }
+    }
+    let userRightActive = false
+    for (let i = 63; i < 126; i++) {
+      if (userVector[i] !== 0) {
+        userRightActive = true
+        break
+      }
+    }
+
+    if (userLeftActive) {
+      userActive = userVector.subarray(0, 63)
+    } else if (userRightActive) {
+      userActive = userVector.subarray(63, 126)
+    }
+
+    if (refLeftActive) {
+      refActive = referenceVector.subarray(0, 63)
+    } else if (refRightActive) {
+      refActive = referenceVector.subarray(63, 126)
+    }
+
+    if (userActive && refActive) {
+      let totalDistance = 0
+      for (let i = 0; i < 21; i++) {
+        const idx = i * 3
+        const dx  = userActive[idx]     - refActive[idx]
+        const dy  = userActive[idx + 1] - refActive[idx + 1]
+        const dz  = userActive[idx + 2] - refActive[idx + 2]
+        totalDistance += Math.sqrt(dx*dx + dy*dy + dz*dz)
+      }
+      const meanDistance = totalDistance / 21
+      score = Math.max(0, 100 - (meanDistance * DISTANCE_SCALE))
+    } else {
+      score = 0
+    }
   }
 
-  const meanDistance = totalDistance / numLandmarks
-  const score = Math.max(0, 100 - (meanDistance * DISTANCE_SCALE))
   return Math.round(score)
 }
 

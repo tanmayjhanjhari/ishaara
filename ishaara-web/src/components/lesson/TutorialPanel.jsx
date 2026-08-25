@@ -43,20 +43,35 @@ export default function TutorialPanel({
 }) {
   if (!sign) return null
 
-  const letter    = sign.label?.toUpperCase() || 'A'
+  const letter    = sign.label?.toUpperCase() || ''
   const signData  = getSignData(letter)
   const color     = getLetterColor(letter)
 
-  const defaultInstruction = signData?.instruction || `Make the ISL sign for "${letter}"`
+  const defaultInstruction = signData?.instruction || sign.description || `Make the ISL sign for "${letter}"`
   const instruction   = getVariantInstruction(letter, activeVariant, defaultInstruction)
-  const tip           = signData?.tip           || 'Watch the reference carefully'
+  const tip           = signData?.tip           || 'Watch the reference hand shape carefully.'
   const handShape     = signData?.hands === 'variant'
     ? (activeVariant === 'one' ? 'One-handed Pose' : 'Two-handed Pose')
     : (signData?.handShape || (signData?.hands === 'one' ? 'One-handed Pose' : 'Two-handed Pose'))
-  const watchOut      = signData?.watchOut      || signData?.commonMistake || 'Follow the steps carefully'
+  const watchOut      = signData?.watchOut      || 'Keep your hand steady in the frame.'
 
-  // Dynamic steps based on active variant
-  const steps = getVariantSteps(letter, activeVariant)
+  // Dynamic steps based on active variant or fallback for word/phrase signs
+  let steps = getVariantSteps(letter, activeVariant)
+  if (steps.length === 0) {
+    if (sign.description) {
+      steps = sign.description
+        .split(/[.!?]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 5)
+    }
+    if (steps.length === 0) {
+      steps = [
+        `Study the target hand shape for "${letter}".`,
+        'Position your hands steady in front of the camera.',
+        'Hold the pose until the accuracy bar fills up.'
+      ]
+    }
+  }
 
   let handsBadge = ''
   if (signData?.hands === 'one') {
@@ -92,6 +107,17 @@ export default function TutorialPanel({
     rightHand = ref.right_hand || null
   }
 
+  const getFontSizeClass = (text) => {
+    if (text.length <= 1) return 'text-6xl'
+    if (text.length <= 4) return 'text-4xl'
+    if (text.length <= 8) return 'text-2xl'
+    return 'text-xl'
+  }
+
+  const categoryLabel = sign.category
+    ? sign.category.charAt(0).toUpperCase() + sign.category.slice(1)
+    : 'Alphabet'
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
@@ -117,14 +143,14 @@ export default function TutorialPanel({
             </p>
             <div className="flex md:flex-col items-center md:items-start gap-3 mt-2 justify-center md:justify-start w-full">
               <span
-                className="text-6xl font-black leading-none"
+                className={`font-black leading-none ${getFontSizeClass(letter)}`}
                 style={{ color, textShadow: `0 0 30px ${color}60` }}
               >
                 {letter}
               </span>
               <div className="text-left mt-1 w-full">
                 <p className="text-sm font-bold text-white leading-tight">{handShape}</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">{sign.category} · Alphabet</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">{categoryLabel} Lesson</p>
                 {handsBadge && (
                   <span
                     className="inline-block text-[9px] font-extrabold px-2.5 py-0.5 rounded-full mt-1.5 border"

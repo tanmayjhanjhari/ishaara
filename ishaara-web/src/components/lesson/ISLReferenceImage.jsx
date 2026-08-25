@@ -13,28 +13,38 @@ function getLetterColor(letter) {
   return LETTER_COLORS[idx % LETTER_COLORS.length]
 }
 
-export default function ISLReferenceImage({ letter, size = 'large', activeVariant = 'two' }) {
-  const signData = getSignData(letter)
+export default function ISLReferenceImage({ letter, sign, size = 'large', activeVariant = 'two' }) {
   const isSmall = size === 'small'
 
+  const signData = getSignData(letter) || sign
   if (!signData) return null
 
-  const color = getLetterColor(letter)
+  const labelText = letter || sign?.label || ''
+  const color = getLetterColor(labelText)
 
-  // Extract reference hand data (with dynamic variant support)
+  // Extract reference hand data (with dynamic variant/database support)
   let leftHand = null
   let rightHand = null
   let ref = null
 
-  if (letter === 'I' || letter === 'U' || letter === 'Z') {
+  if (sign?.reference_landmarks) {
+    ref = sign.reference_landmarks
+  } else if (letter === 'I' || letter === 'U' || letter === 'Z') {
     ref = getVariantLandmarks(letter, activeVariant)
-  } else {
+  } else if (letter) {
     ref = REFERENCE_LANDMARKS[letter]
   }
 
   if (ref) {
     leftHand = ref.left_hand || null
     rightHand = ref.right_hand || null
+  }
+
+  const getFontSizeClass = (text) => {
+    if (text.length <= 1) return 'text-8xl md:text-9xl'
+    if (text.length <= 4) return 'text-5xl md:text-6xl'
+    if (text.length <= 8) return 'text-3xl md:text-4xl'
+    return 'text-2xl md:text-3xl'
   }
 
   if (isSmall) {
@@ -75,12 +85,12 @@ export default function ISLReferenceImage({ letter, size = 'large', activeVarian
         {ref ? (
           <ReferenceHandCanvas leftHand={leftHand} rightHand={rightHand} color={color} size={105} />
         ) : (
-          <span className="font-black text-5xl text-indigo-400 select-none">{letter}</span>
+          <span className="font-black text-center text-indigo-400 select-none text-2xl px-1">{labelText}</span>
         )}
 
         {/* Small letter badge in top right corner */}
-        <div className="absolute top-1.5 right-1.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-black rounded-md px-1.5 py-0.5 border border-indigo-500/30 z-20 shadow-sm">
-          {letter}
+        <div className="absolute top-1.5 right-1.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-black rounded-md px-1.5 py-0.5 border border-indigo-500/30 z-20 shadow-sm max-w-[80px] truncate">
+          {labelText}
         </div>
       </div>
     )
@@ -107,12 +117,12 @@ export default function ISLReferenceImage({ letter, size = 'large', activeVarian
         {/* Left column: giant letter */}
         <div className="flex flex-col items-center justify-center">
           <span
-            className="font-black tracking-tighter text-indigo-400 select-none text-8xl md:text-9xl leading-none"
+            className={`font-black tracking-tighter text-indigo-400 select-none leading-none ${getFontSizeClass(labelText)}`}
             style={{
               textShadow: '0 0 40px rgba(99, 102, 241, 0.4), 0 0 10px rgba(99, 102, 241, 0.2)',
             }}
           >
-            {letter}
+            {labelText}
           </span>
           {signData.handShape && (
             <p className="text-xs font-semibold text-indigo-200/80 text-center mt-2 max-w-[200px]">
@@ -131,9 +141,9 @@ export default function ISLReferenceImage({ letter, size = 'large', activeVarian
       </div>
 
       {/* Instruction label */}
-      {signData.instruction && (
+      {(signData.instruction || signData.description) && (
         <p className="text-xs text-gray-400 text-center mt-4 px-6 leading-relaxed line-clamp-2 max-w-lg z-20">
-          {signData.instruction}
+          {signData.instruction || signData.description}
         </p>
       )}
 

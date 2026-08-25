@@ -357,7 +357,7 @@ export default function LessonPlayer() {
     setHasTwoHands(!!leftHand && !!rightHand)
 
     // Only run scoring in practice mode
-    if (mode === 'practice' && vector) {
+    if (mode === 'practice') {
       scorer.processFrame(vector)
     } else if (mode === 'tutorial') {
       // Keep hint showing "show your hand" even in tutorial mode
@@ -723,30 +723,30 @@ export default function LessonPlayer() {
                   {mode === 'tutorial' ? (
                     <div className="space-y-4">
                       {/* Big reference visual */}
-                      <ISLReferenceImage letter={currentSign.label} size="large" activeVariant={activeVariant} />
+                      <ISLReferenceImage letter={currentSign.label} sign={currentSign} size="large" activeVariant={activeVariant} />
 
                       {/* Instructions & tips */}
-                      {getSignData(currentSign.label) && (
+                      {(getSignData(currentSign.label) || currentSign) && (
                         <div className="space-y-3">
                           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                             <div className="flex justify-between items-center mb-1.5">
                               <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest">
                                 Instruction
                               </h4>
-                              {renderDifficultyBadge(getSignData(currentSign.label)?.difficulty)}
+                              {renderDifficultyBadge(getSignData(currentSign.label)?.difficulty || currentSign?.difficulty)}
                             </div>
                             <p className="text-sm text-gray-200">
-                              {getSignData(currentSign.label).instruction}
+                              {getSignData(currentSign.label)?.instruction || currentSign?.description || `Form the sign for "${currentSign.label}" as shown in the reference image.`}
                             </p>
                           </div>
 
-                          {getSignData(currentSign.label).tip && (
+                          {(getSignData(currentSign.label)?.tip || currentSign?.tip) && (
                             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
                               <h4 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1.5">
                                 Pro-Tip
                               </h4>
                               <p className="text-sm text-amber-200/90">
-                                {getSignData(currentSign.label).tip}
+                                {getSignData(currentSign.label)?.tip || currentSign?.tip}
                               </p>
                             </div>
                           )}
@@ -808,7 +808,7 @@ export default function LessonPlayer() {
                       {/* Practice Layout: small reference image in a nice header card */}
                       <div className="flex gap-4 items-center bg-white/5 border border-white/10 rounded-xl p-4">
                         <div className="shrink-0">
-                          <ISLReferenceImage letter={currentSign.label} size="small" activeVariant={activeVariant} />
+                          <ISLReferenceImage letter={currentSign.label} sign={currentSign} size="small" activeVariant={activeVariant} />
                         </div>
                         <div className="flex-1">
                           <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
@@ -818,7 +818,7 @@ export default function LessonPlayer() {
                             <h3 className="text-2xl font-black text-white">
                               {currentSign.label}
                             </h3>
-                            {renderDifficultyBadge(currentSignData?.difficulty)}
+                            {renderDifficultyBadge(currentSignData?.difficulty || currentSign?.difficulty)}
                           </div>
                           <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                             Form this sign in front of the camera and hold steady for a split second.

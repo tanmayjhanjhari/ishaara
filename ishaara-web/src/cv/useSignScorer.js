@@ -70,7 +70,8 @@ export function useSignScorer({
     const targetLabel = sign?.label?.toUpperCase()
     const isVariant = targetLabel === 'I' || targetLabel === 'U' || targetLabel === 'Z'
     const defaultForm = (targetLabel === 'I' || targetLabel === 'U') ? 'one' : 'two'
-    const useONNX = isModelReady() && (!isVariant || activeVariant === defaultForm)
+    const isAlphabet = sign?.category === 'alphabet'
+    const useONNX = isAlphabet && isModelReady() && (!isVariant || activeVariant === defaultForm)
 
     if (useONNX) {
       try {

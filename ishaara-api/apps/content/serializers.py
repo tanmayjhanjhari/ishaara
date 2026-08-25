@@ -4,7 +4,7 @@ from .models import Sign, Lesson, LessonSign
 class SignSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Sign
-        fields = ['id', 'slug', 'label', 'category', 'difficulty', 'xp_reward', 'video_url']
+        fields = ['id', 'slug', 'label', 'category', 'difficulty', 'xp_reward', 'video_url', 'description']
 
 class SignDetailSerializer(serializers.ModelSerializer):
     is_completed = serializers.SerializerMethodField()
@@ -12,7 +12,7 @@ class SignDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Sign
         fields = ['id', 'slug', 'label', 'category', 'difficulty', 'xp_reward',
-                  'video_url', 'reference_landmarks', 'is_completed']
+                  'video_url', 'reference_landmarks', 'is_completed', 'description']
 
     def get_is_completed(self, obj):
         completed_sign_ids = self.context.get('completed_sign_ids')

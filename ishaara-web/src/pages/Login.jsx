@@ -5,11 +5,16 @@ import HandConstellation from '../components/ui/HandConstellation'
 import { Button, Input } from '../components/ui'
 import { useLogin } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
+import { useQueryClient } from '@tanstack/react-query'
+import { useSessionStore } from '../store/sessionStore'
+import { useStreakStore } from '../store/streakStore'
 
 export default function Login() {
   const navigate    = useNavigate()
   const authStore   = useAuthStore()
   const loginMut    = useLogin()
+
+  const queryClient = useQueryClient()
 
   const [email,       setEmail]       = useState('')
   const [password,    setPassword]    = useState('')
@@ -20,6 +25,12 @@ export default function Login() {
     setServerError('')
     try {
       const res = await loginMut.mutateAsync({ email, password })
+      
+      // Clear React Query cache & session state to prevent cross-account contamination
+      queryClient.clear()
+      useSessionStore.getState().resetSession()
+      useStreakStore.setState({ currentStreak: 0, longestStreak: 0, lastActiveDate: null, isStreakDay: false })
+
       authStore.login(res.data)
       navigate('/dashboard')
     } catch (err) {

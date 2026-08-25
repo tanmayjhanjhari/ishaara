@@ -4,6 +4,9 @@ import { Mail, Lock, User, ArrowRight, Sparkles, AlertCircle } from 'lucide-reac
 import { Button, Input } from '../components/ui'
 import { useRegister } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
+import { useQueryClient } from '@tanstack/react-query'
+import { useSessionStore } from '../store/sessionStore'
+import { useStreakStore } from '../store/streakStore'
 
 const PERKS = [
   'Real-time AI gesture scoring',
@@ -19,6 +22,7 @@ export default function Register() {
   const navigate      = useNavigate()
   const authStore     = useAuthStore()
   const registerMut   = useRegister()
+  const queryClient   = useQueryClient()
 
   const [username,        setUsername]        = useState('')
   const [email,           setEmail]           = useState('')
@@ -64,6 +68,12 @@ export default function Register() {
         password,
         confirm_password: confirmPassword,
       })
+
+      // Clear React Query cache & session state to prevent cross-account contamination
+      queryClient.clear()
+      useSessionStore.getState().resetSession()
+      useStreakStore.setState({ currentStreak: 0, longestStreak: 0, lastActiveDate: null, isStreakDay: false })
+
       authStore.login(res.data)
       navigate('/dashboard')
     } catch (err) {
