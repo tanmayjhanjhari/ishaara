@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import client from './client'
 
+export const useLessonPath = () =>
+  useQuery({
+    queryKey: ['lesson-path'],
+    queryFn: () =>
+      client.get('/api/v1/lessons/?ordering=order_index').then(res => res.data.data),
+    staleTime: 5 * 60 * 1000,
+  })
+
 export const useLessons = (filters = {}) =>
   useQuery({
     queryKey: ['lessons', filters],

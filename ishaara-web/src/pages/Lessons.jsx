@@ -1,126 +1,211 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen } from 'lucide-react'
 import PageWrapper from '../components/layout/PageWrapper'
-import { Button, EmptyState, SkeletonCard } from '../components/ui'
-import LessonCard from '../components/lesson/LessonCard'
-import { useLessons } from '../api/lessons'
-import { initModel } from '../cv/onnxModel'
+import { SkeletonLoader } from '../components/ui'
+import { useLessonPath } from '../api/lessons'
+import { buildPathLayout, getLessonStatus } from '../utils/pathLayout'
+import PathSection from '../components/lesson/PathSection'
+import { useAuthStore } from '../store/authStore'
 
 export default function Lessons() {
   const navigate               = useNavigate()
-  const [category, setCategory] = useState('all')
+  const { user }               = useAuthStore()
+  const { data: lessons = [], isLoading } = useLessonPath()
+  const [lockedTooltip, setLockedTooltip] = useState(null)
 
-  // Preload the ONNX model while the user browses lessons
+  const userLevel = user?.profile?.level || 1
+  const sections  = lessons ? buildPathLayout(lessons) : []
+
+  // Find first available active lesson for quick-start
+  const nextLesson = lessons?.find(l =>
+    getLessonStatus(l, userLevel) === 'available' ||
+    getLessonStatus(l, userLevel) === 'active')
+
+  // Close tooltip on scroll or click outside
   useEffect(() => {
-    initModel().catch(err => console.warn('[ONNX] Preload failed:', err))
-  }, [])
+    if (!lockedTooltip) return
+    const handleClose = () => setLockedTooltip(null)
+    window.addEventListener('click', handleClose)
+    window.addEventListener('scroll', handleClose)
+    return () => {
+      window.removeEventListener('click', handleClose)
+      window.removeEventListener('scroll', handleClose)
+    }
+  }, [lockedTooltip])
 
-  const { data: allLessons = [], isLoading, isError, refetch } = useLessons({})
+  const handleLockedClick = (lesson, e) => {
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setLockedTooltip({
+      lesson,
+      x: rect.left + rect.width / 2,
+      y: rect.top - 8
+    })
+  }
 
-  // Dynamically load categories from lessons
-  const categories = ['all', ...new Set(allLessons.map(l => l.category))]
-
-  // Filter lessons locally
-  const lessons = category === 'all'
-    ? allLessons
-    : allLessons.filter(l => l.category === category)
+  const completedCount = lessons?.filter(l => l.user_progress_status === 'completed').length || 0
 
   return (
     <PageWrapper>
-      {/* Header */}
-      <div className="mb-2 animate-fade-up">
-        <p className="text-xs font-semibold tracking-widest text-text-muted uppercase mb-2">
-          Learning Journey
-        </p>
-        <h1 className="text-4xl md:text-5xl font-extrabold text-text-primary tracking-tight mb-2">
-          Lessons
-        </h1>
-        <p className="text-sm text-text-muted">
-          Choose a lesson to start practicing
-        </p>
-      </div>
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px', position: 'relative' }}>
 
-      {/* Category tabs */}
-      <div className="flex gap-2 mt-6 mb-6 flex-wrap">
-        {categories.map(cat => {
-          const count = cat === 'all'
-            ? allLessons.length
-            : allLessons.filter(l => l.category === cat).length
+        {/* Page header */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '24px 0 16px'
+        }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>
+              Learning Path
+            </h1>
+            <p style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>
+              Level {userLevel} · {completedCount} lesson{completedCount !== 1 ? 's' : ''} done
+            </p>
+          </div>
 
-          const countText = `${count} lesson${count !== 1 ? 's' : ''}`
-
-          let tabLabel = ''
-          switch (cat) {
-            case 'all':
-              tabLabel = `All (${countText})`
-              break
-            case 'alphabet':
-              tabLabel = `🔤 Alphabet (${countText})`
-              break
-            case 'word':
-              tabLabel = `💬 Words (${countText})`
-              break
-            case 'phrase':
-              tabLabel = `📝 Phrases (${countText})`
-              break
-            default:
-              const capitalized = cat.charAt(0).toUpperCase() + cat.slice(1)
-              tabLabel = `${capitalized} (${countText})`
-              break
-          }
-
-          return (
-            <Button
-              key={cat}
-              variant={category === cat ? 'primary' : 'ghost'}
-              size="sm"
-              onClick={() => setCategory(cat)}
+          {/* Quick continue button */}
+          {nextLesson && (
+            <button
+              onClick={() => navigate(`/lessons/${nextLesson.id}`)}
+              style={{
+                background: '#4f46e5',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 12,
+                padding: '8px 16px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'transform 0.2s',
+              }}
+              className="hover:scale-105 active:scale-95"
             >
-              {tabLabel}
-            </Button>
-          )
-        })}
+              Continue →
+            </button>
+          )}
+        </div>
+
+        {/* Sticky progress bar */}
+        <div style={{
+          background: '#1f2937',
+          borderRadius: 8,
+          padding: '8px 12px',
+          marginBottom: 20
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 11,
+            color: '#6b7280',
+            marginBottom: 4
+          }}>
+            <span>Overall Progress</span>
+            <span>{completedCount} / {lessons?.length || 0} lessons</span>
+          </div>
+          <div style={{
+            background: '#374151',
+            borderRadius: 4,
+            height: 6
+          }}>
+            <div style={{
+              background: 'linear-gradient(90deg, #4f46e5, #7c3aed)',
+              borderRadius: 4,
+              height: 6,
+              width: `${lessons?.length > 0 ? (completedCount / lessons.length) * 100 : 0}%`,
+              transition: 'width 0.5s ease'
+            }} />
+          </div>
+        </div>
+
+        {/* Loading */}
+        {isLoading && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 16,
+            paddingTop: 40
+          }}>
+            {[1, 2, 3, 4].map(i => (
+              <SkeletonLoader key={i} variant="circle" size="xl" className="!w-16 !h-16" />
+            ))}
+          </div>
+        )}
+
+        {/* Path sections */}
+        {!isLoading && sections.map(section => (
+          <PathSection
+            key={section.id}
+            section={section}
+            userLevel={userLevel}
+            onLessonClick={(lesson) => navigate(`/lessons/${lesson.id}`)}
+            onLockedClick={handleLockedClick}
+          />
+        ))}
+
+        {/* End of path */}
+        {!isLoading && sections.length > 0 && (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: '#374151',
+            fontSize: 13
+          }}>
+            🎉 More lessons coming soon!
+          </div>
+        )}
+
+        {/* Floating tooltip */}
+        {lockedTooltip && (
+          <div
+            style={{
+              position: 'fixed',
+              left: lockedTooltip.x,
+              top: lockedTooltip.y,
+              transform: 'translate(-50%, -100%)',
+              background: '#1f2937',
+              border: '2px solid #ef4444',
+              borderRadius: 12,
+              padding: '12px 16px',
+              zIndex: 100,
+              width: 220,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+              pointerEvents: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#ef4444' }}>
+                  🔒 Locked Lesson
+                </span>
+                <button
+                  onClick={() => setLockedTooltip(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#6b7280',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    padding: 0,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <p style={{ fontSize: 12, color: '#fff', fontWeight: 600, marginTop: 4 }}>
+                Reach Level {lockedTooltip.lesson.required_level} to unlock.
+              </p>
+              <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                You are currently Level {userLevel}.
+              </p>
+            </div>
+          </div>
+        )}
+
       </div>
-
-      {/* Loading */}
-      {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      )}
-
-      {/* Error */}
-      {isError && (
-        <div className="text-center py-12">
-          <p className="text-text-muted mb-4">Failed to load lessons.</p>
-          <Button variant="secondary" onClick={() => refetch()}>Try Again</Button>
-        </div>
-      )}
-
-      {/* Empty */}
-      {!isLoading && !isError && lessons.length === 0 && (
-        <EmptyState
-          icon={BookOpen}
-          title="No lessons available"
-          subtitle="Check back soon for new content"
-        />
-      )}
-
-      {/* Lesson grid */}
-      {!isLoading && !isError && lessons.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {lessons.map(lesson => (
-            <LessonCard
-              key={lesson.id}
-              lesson={lesson}
-              onClick={() => navigate(`/lessons/${lesson.id}`)}
-            />
-          ))}
-        </div>
-      )}
     </PageWrapper>
   )
 }

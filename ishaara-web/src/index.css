@@ -410,7 +410,17 @@ body {
   animation: toastIn 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* --- Learning Path Animations --- */
+@keyframes pathPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(79,70,229,0.6) }
+  50%      { box-shadow: 0 0 0 14px rgba(79,70,229,0) }
+}
 
+@keyframes pathNodeIn {
+  from { transform: scale(0.8); opacity: 0 }
+  to   { transform: scale(1);   opacity: 1 }
+}
 
-
-
+.path-node-enter {
+  animation: pathNodeIn 0.3s ease-out forwards;
+}
