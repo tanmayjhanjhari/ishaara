@@ -7,13 +7,6 @@ import LessonCard from '../components/lesson/LessonCard'
 import { useLessons } from '../api/lessons'
 import { initModel } from '../cv/onnxModel'
 
-const TABS = [
-  { label: 'All',      value: 'all'      },
-  { label: 'Alphabet', value: 'alphabet' },
-  { label: 'Words',    value: 'word'     },
-  { label: 'Phrases',  value: 'phrase'   },
-]
-
 export default function Lessons() {
   const navigate               = useNavigate()
   const [category, setCategory] = useState('all')
@@ -23,8 +16,15 @@ export default function Lessons() {
     initModel().catch(err => console.warn('[ONNX] Preload failed:', err))
   }, [])
 
-  const filterParam = category === 'all' ? {} : { category }
-  const { data: lessons = [], isLoading, isError, refetch } = useLessons(filterParam)
+  const { data: allLessons = [], isLoading, isError, refetch } = useLessons({})
+
+  // Dynamically load categories from lessons
+  const categories = ['all', ...new Set(allLessons.map(l => l.category))]
+
+  // Filter lessons locally
+  const lessons = category === 'all'
+    ? allLessons
+    : allLessons.filter(l => l.category === category)
 
   return (
     <PageWrapper>
@@ -43,16 +43,44 @@ export default function Lessons() {
 
       {/* Category tabs */}
       <div className="flex gap-2 mt-6 mb-6 flex-wrap">
-        {TABS.map(tab => (
-          <Button
-            key={tab.value}
-            variant={category === tab.value ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setCategory(tab.value)}
-          >
-            {tab.label}
-          </Button>
-        ))}
+        {categories.map(cat => {
+          const count = cat === 'all'
+            ? allLessons.length
+            : allLessons.filter(l => l.category === cat).length
+
+          const countText = `${count} lesson${count !== 1 ? 's' : ''}`
+
+          let tabLabel = ''
+          switch (cat) {
+            case 'all':
+              tabLabel = `All (${countText})`
+              break
+            case 'alphabet':
+              tabLabel = `🔤 Alphabet (${countText})`
+              break
+            case 'word':
+              tabLabel = `💬 Words (${countText})`
+              break
+            case 'phrase':
+              tabLabel = `📝 Phrases (${countText})`
+              break
+            default:
+              const capitalized = cat.charAt(0).toUpperCase() + cat.slice(1)
+              tabLabel = `${capitalized} (${countText})`
+              break
+          }
+
+          return (
+            <Button
+              key={cat}
+              variant={category === cat ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setCategory(cat)}
+            >
+              {tabLabel}
+            </Button>
+          )
+        })}
       </div>
 
       {/* Loading */}
