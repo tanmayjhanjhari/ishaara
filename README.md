@@ -16,7 +16,7 @@
 
 ## 🌟 Overview
 
-**Ishaara** (meaning "sign" or "gesture" in Hindi/Urdu) is a web application designed to make learning Indian Sign Language (ISL) accessible, interactive, and fun. By leveraging real-time computer vision through MediaPipe, Ishaara provides instant feedback on users' hand gestures directly in the browser—no specialized hardware required.
+**Ishaara** (meaning "sign" or "gesture" in Hindi/Urdu) is a web application designed to make learning Indian Sign Language (ISL) accessible, interactive, and fun. By leveraging real-time computer vision through MediaPipe, Ishaara provides instant feedback on users' hand gestures directly in the browser-no specialized hardware required.
 
 ## ✨ Features
 
