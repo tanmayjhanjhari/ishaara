@@ -39,30 +39,73 @@ class LessonListView(APIView):
         return success_response(serializer.data)
 
 class LessonDetailView(APIView):
+    """
+    Optimised lesson detail — single prefetch_related, single SignProgress
+    query for completion status. No N+1 queries. Uses SignProgress (not Attempt)
+    to reflect per-lesson completion state accurately.
+    """
     permission_classes = [IsAuthenticated]
-    def get(self, request, pk):
-        lesson = get_object_or_404(
-            Lesson.objects.prefetch_related('lesson_signs__sign'),
-            pk=pk, is_published=True)
-        serializer = LessonDetailSerializer(
-            lesson, context={'request': request})
-        
-        data = serializer.data
-        if request.user.is_authenticated:
-            from apps.progress.models import SignProgress
-            completed_sign_ids = set(
-                SignProgress.objects.filter(
-                    user=request.user,
-                    lesson=lesson,
-                    is_completed=True
-                ).values_list('sign_id', flat=True)
-            )
-            completed_sign_str_ids = {str(x) for x in completed_sign_ids}
-            if 'signs' in data:
-                for sign in data['signs']:
-                    sign['is_completed'] = sign['id'] in completed_sign_str_ids
 
-        return success_response(data)
+    def get(self, request, pk):
+        try:
+            lesson = Lesson.objects.prefetch_related(
+                'lesson_signs__sign'
+            ).get(pk=pk, is_published=True)
+        except Lesson.DoesNotExist:
+            return error_response('Lesson not found', status=404)
+
+        lesson_signs = lesson.lesson_signs.select_related('sign').order_by('order_index')
+
+        # Single query for completed sign IDs (per-lesson progress tracking)
+        completed_ids = set()
+        if request.user.is_authenticated:
+            try:
+                from apps.progress.models import SignProgress
+                completed_ids = set(
+                    str(x) for x in SignProgress.objects.filter(
+                        user=request.user,
+                        lesson=lesson,
+                        is_completed=True
+                    ).values_list('sign_id', flat=True)
+                )
+            except Exception:
+                pass
+
+        signs_data = []
+        for ls in lesson_signs:
+            s = ls.sign
+            signs_data.append({
+                'id':                  str(s.id),
+                'slug':                s.slug,
+                'label':               s.label,
+                'category':            s.category,
+                'difficulty':          s.difficulty,
+                'xp_reward':           s.xp_reward,
+                'video_url':           s.video_url,
+                'description':         s.description,
+                'reference_landmarks': s.reference_landmarks,
+                'is_completed':        str(s.id) in completed_ids,
+            })
+
+        # User lesson-level progress status
+        from apps.progress.models import LessonProgress
+        progress = LessonProgress.objects.filter(
+            user=request.user, lesson=lesson).first()
+        progress_status = progress.status if progress else 'not_started'
+
+        return success_response({
+            'id':                   str(lesson.id),
+            'title':                lesson.title,
+            'description':          lesson.description,
+            'category':             lesson.category,
+            'difficulty':           lesson.difficulty,
+            'order_index':          lesson.order_index,
+            'required_level':       lesson.required_level,
+            'is_published':         lesson.is_published,
+            'sign_count':           len(signs_data),
+            'user_progress_status': progress_status,
+            'signs':                signs_data,
+        })
 
 
 class AdminSignListView(APIView):

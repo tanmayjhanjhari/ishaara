@@ -51,6 +51,16 @@ export default function LessonPlayer() {
   const isStaff = authStore.user?.is_staff || false
 
   const { data: lesson, isLoading, isError } = useLesson(id)
+
+  // Timeout detection — if lesson hasn't loaded after 10s, show retry
+  const [loadTimeout, setLoadTimeout] = useState(false)
+  useEffect(() => {
+    if (!isLoading) { setLoadTimeout(false); return }
+    const timer = setTimeout(() => {
+      if (isLoading) setLoadTimeout(true)
+    }, 10000)
+    return () => clearTimeout(timer)
+  }, [isLoading])
   const completeLesson = useCompleteLesson()
   const postAttempt    = useSubmitAttempt()
 
@@ -436,9 +446,32 @@ export default function LessonPlayer() {
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (isLoading) {
+    if (loadTimeout) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: '#070714' }}>
+          <p style={{ color: '#ef4444', fontWeight: 600 }}>Failed to load lesson. Please check your connection.</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ color: '#6366f1', fontWeight: 700, marginTop: 8 }}
+          >
+            Retry
+          </button>
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#070714' }}>
         <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  // ── Empty lesson guard ────────────────────────────────────────────────────
+  if (!isLoading && lesson && (!lesson.signs || lesson.signs.length === 0)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: '#070714' }}>
+        <p className="text-text-muted">This lesson has no signs yet. Check back soon.</p>
+        <Button variant="secondary" onClick={() => navigate('/lessons')}>Back to Lessons</Button>
       </div>
     )
   }
@@ -933,8 +966,8 @@ export default function LessonPlayer() {
                 </div>
               )}
 
-              {/* Skip button when no reference data */}
-              {mode === 'practice' && (!currentSign?.reference_landmarks || currentSign?.reference_landmarks.length === 0) && (
+              {/* Skip button for word signs that have no reference landmarks */}
+              {mode === 'practice' && currentSign?.category !== 'alphabet' && !currentSign?.reference_landmarks && (
                 <div className="flex justify-center mt-6">
                   <Button variant="ghost" size="sm" onClick={handleSkip}>
                     Skip (No Reference)

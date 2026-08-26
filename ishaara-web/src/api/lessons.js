@@ -21,7 +21,9 @@ export const useLesson = (id) =>
   useQuery({
     queryKey: ['lesson', id],
     queryFn: () =>
-      client.get(`/api/v1/lessons/${id}/`).then(res => res.data.data),
-    enabled: !!id,
-    staleTime: 10 * 60 * 1000,
+      client.get(`/api/v1/lessons/${id}/`).then(r => r.data.data),
+    enabled:    !!id,
+    staleTime:  10 * 60 * 1000,
+    retry:      2,
+    retryDelay: 1000,
   })

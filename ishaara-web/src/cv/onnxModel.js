@@ -1,8 +1,8 @@
 /**
  * onnxModel.js — ONNX inference singleton for ISL sign recognition
  *
- * Model: MLP exported with skl2onnx (zipmap=False)
- * Input:  Float32Array[126]  — 63 left-hand + 63 right-hand normalized landmarks
+ * Model: sklearn RandomForest/MLP exported via skl2onnx (zipmap=False)
+ * Input:  Float32Array[126] — 63 left-hand + 63 right-hand normalized landmarks
  * Outputs:
  *   "label"         — int64[batch]       predicted class index
  *   "probabilities" — float32[batch, 26] class probability scores
@@ -13,36 +13,90 @@ import * as ort from 'onnxruntime-web'
 let session        = null
 let labelMap       = null
 let isInitializing = false
+let initError      = null
 
 export async function initModel() {
-  if (session && labelMap) return   // already loaded
-  if (isInitializing)      return   // already in progress
+  if (session && labelMap) return { success: true }
+
+  if (isInitializing) {
+    // Another call already started — wait up to 30s for it to finish
+    let waited = 0
+    while (isInitializing && waited < 30000) {
+      await new Promise(r => setTimeout(r, 200))
+      waited += 200
+    }
+    return session && labelMap
+      ? { success: true }
+      : { success: false, error: initError || 'Init timed out' }
+  }
 
   isInitializing = true
-  console.log('[ONNX] Loading model...')
+  initError      = null
 
   try {
+    console.log('[ONNX] Loading model (this may take 10–30s for large models)...')
+
     session = await ort.InferenceSession.create(
       '/models/ishaara_sign_classifier.onnx',
       { executionProviders: ['wasm'] }
     )
 
-    const res = await fetch('/models/label_map.json')
-    labelMap  = await res.json()
+    console.log('[ONNX] Input names :', session.inputNames)
+    console.log('[ONNX] Output names:', session.outputNames)
 
-    console.log('[ONNX] ✅ Model ready')
-    console.log('[ONNX] Inputs:', session.inputNames)
-    console.log('[ONNX] Outputs:', session.outputNames)
-  } catch (err) {
-    console.error('[ONNX] ❌ Load failed:', err)
-    session        = null
+    const res = await fetch('/models/label_map.json')
+    if (!res.ok) throw new Error(`label_map.json fetch failed: HTTP ${res.status}`)
+    labelMap = await res.json()
+
+    console.log('[ONNX] ✅ Ready —', Object.keys(labelMap).length, 'classes:', Object.values(labelMap).join(','))
     isInitializing = false
-    throw err
+    return { success: true }
+  } catch (err) {
+    console.error('[ONNX] ❌ Failed to load model:', err)
+    initError      = err.message
+    session        = null
+    labelMap       = null
+    isInitializing = false
+    return { success: false, error: err.message }
   }
 }
 
 export function isModelReady() {
   return session !== null && labelMap !== null
+}
+
+export function getLabelMap() {
+  return labelMap
+}
+
+/**
+ * Extract probabilities from an ONNX output tensor OR ZipMap.
+ * skl2onnx exports probabilities as:
+ *   - Float32 tensor [1, 26]  (zipmap=False — correct, what we want)
+ *   - Sequence<Map<int64, float>> (zipmap=True — legacy, requires workaround)
+ */
+function extractProbs(probOut, numClasses) {
+  if (!probOut) return null
+
+  // Case 1: Float32 tensor (zipmap=False) — .data is a typed array
+  if (probOut.data && typeof probOut.data[0] === 'number') {
+    return Array.from(probOut.data)
+  }
+
+  // Case 2: ZipMap output — probOut.data is an array of Maps or objects
+  // Try to extract as object { "0": 0.01, "1": 0.95, ... }
+  try {
+    const mapObj = probOut.data?.[0]
+    if (mapObj && typeof mapObj === 'object') {
+      const arr = new Array(numClasses).fill(0)
+      for (const [k, v] of Object.entries(mapObj)) {
+        arr[parseInt(k)] = typeof v === 'number' ? v : 0
+      }
+      return arr
+    }
+  } catch (_) { /* fall through */ }
+
+  return null
 }
 
 /**
@@ -53,30 +107,46 @@ export function isModelReady() {
 export async function predictSign(vector126) {
   if (!session || !labelMap) return null
 
-  // Guard against bad input
-  if (!vector126 || vector126.length !== 126) return null
-  const allZero = vector126.every(v => v === 0)
-  if (allZero) return null
+  if (!vector126 || vector126.length !== 126) {
+    console.warn('[ONNX] Bad vector length:', vector126?.length)
+    return null
+  }
+
+  // Skip all-zero frames (no hand detected)
+  let hasNonZero = false
+  for (let i = 0; i < 126; i++) {
+    if (vector126[i] !== 0) { hasNonZero = true; break }
+  }
+  if (!hasNonZero) return null
 
   try {
-    const tensor    = new ort.Tensor('float32', vector126, [1, 126])
-    const inputName = session.inputNames[0]
-    const results   = await session.run({ [inputName]: tensor })
+    const inputName  = session.inputNames[0]
+    const tensor     = new ort.Tensor('float32', vector126, [1, 126])
+    const results    = await session.run({ [inputName]: tensor })
 
-    // "label" → int64 tensor, shape [1]
+    // ── Extract predicted label index ────────────────────────────────────────
     const labelOut = results['label'] ?? results[session.outputNames[0]]
     const predIdx  = Number(labelOut.data[0])
     const label    = labelMap[String(predIdx)]
 
-    // "probabilities" → float32 tensor, shape [1, 26]
-    const probOut    = results['probabilities'] ?? results[session.outputNames[1]]
-    const probs      = Array.from(probOut.data)          // 26 values
-    const confidence = probs[predIdx] ?? 0               // probability of predicted class
+    if (!label) {
+      console.warn('[ONNX] Unknown class index:', predIdx)
+      return null
+    }
+
+    // ── Extract class probabilities ──────────────────────────────────────────
+    const probOutName = session.outputNames.find(n => n !== 'label') ?? session.outputNames[session.outputNames.length - 1]
+    const probOut     = results[probOutName] ?? results['probabilities']
+
+    const numClasses = Object.keys(labelMap).length
+    const probs      = extractProbs(probOut, numClasses)
+
+    const confidence = probs ? (probs[predIdx] ?? 0) : 0.5  // default 50% if probs unavailable
 
     return {
       label,
       confidence,
-      score: Math.round(confidence * 100)
+      score: Math.round(confidence * 100),
     }
   } catch (err) {
     console.error('[ONNX] Prediction error:', err)

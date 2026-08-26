@@ -15,23 +15,21 @@ export function useSignScorer({
   onScoreReady,  // callback: ({ score, is_success, rating }) => void
   onScoreUpdate  // callback: (smoothedScore) => void — for live meter
 }) {
-  const scoreWindowRef    = useRef([])
-  const holdStartRef      = useRef(null)
-  const referenceRef      = useRef(null)
-  const isScoringRef      = useRef(false)  // prevent double-trigger
-  const cooldownRef       = useRef(false)  // post-success cooldown
-  const lastInferenceRef  = useRef(0)      // timestamp of last inference
+  const scoreWindowRef   = useRef([])
+  const holdStartRef     = useRef(null)
+  const referenceRef     = useRef(null)
+  const isScoringRef     = useRef(false)   // prevent double-trigger
+  const cooldownRef      = useRef(false)   // post-success cooldown
+  const lastInferenceRef = useRef(0)       // timestamp of last inference
 
-  // Recompute reference vector when sign changes or variant toggles
+  // Recompute reference vector whenever sign or variant changes
   useEffect(() => {
     let ref = sign?.reference_landmarks
     if (sign && (sign.label === 'I' || sign.label === 'U' || sign.label === 'Z')) {
       ref = getVariantLandmarks(sign.label, activeVariant)
     }
 
-    referenceRef.current  = ref
-      ? normalizeReference(ref)
-      : null
+    referenceRef.current   = ref ? normalizeReference(ref) : null
     scoreWindowRef.current = []
     holdStartRef.current   = null
     isScoringRef.current   = false
@@ -42,10 +40,10 @@ export function useSignScorer({
   const processFrame = useCallback(async (userVector) => {
     if (signType === 'motion') return
 
-    // Post-success cooldown — don't score until user dismisses overlay
+    // Post-success cooldown — wait for overlay to dismiss via resetScorer()
     if (cooldownRef.current) return
 
-    // No hand detected — reset hold timer and report 0
+    // No hand detected — reset hold timer, push 0 to meter
     if (!userVector) {
       holdStartRef.current   = null
       scoreWindowRef.current = []
@@ -53,12 +51,12 @@ export function useSignScorer({
       return
     }
 
-    // Throttle inference — skip frame if last call was too recent
+    // Throttle to ~12fps max to avoid flooding WASM
     const now = Date.now()
     if (now - lastInferenceRef.current < INFERENCE_INTERVAL_MS) return
     lastInferenceRef.current = now
 
-    // Apply zero-padding to inactive hand indices if activeVariant is 'one'
+    // When activeVariant is 'one', zero-pad the right-hand slot
     let processedVector = userVector
     if (activeVariant === 'one') {
       processedVector = new Float32Array(126)
@@ -68,60 +66,50 @@ export function useSignScorer({
     let score = 0
 
     const targetLabel = sign?.label?.toUpperCase()
-    const isVariant = targetLabel === 'I' || targetLabel === 'U' || targetLabel === 'Z'
+    const isVariant   = targetLabel === 'I' || targetLabel === 'U' || targetLabel === 'Z'
     const defaultForm = (targetLabel === 'I' || targetLabel === 'U') ? 'one' : 'two'
-    const isAlphabet = sign?.category === 'alphabet'
-    const useONNX = isAlphabet && isModelReady() && (!isVariant || activeVariant === defaultForm)
+    const isAlphabet  = sign?.category === 'alphabet'
+    const modelReady  = isModelReady()
+    // Use ONNX for alphabet signs when: model is loaded AND (not a variant OR in the variant's default form)
+    const useONNX     = isAlphabet && modelReady && (!isVariant || activeVariant === defaultForm)
 
     if (useONNX) {
-      try {
-        const pred = await predictSign(processedVector)
-
-        if (pred) {
-          const predictedLabel = pred.label?.toUpperCase()
-
-          console.log('[Scorer] Sign check:', predictedLabel,
-                      '| Expected:', targetLabel,
-                      '| Confidence:', pred.confidence.toFixed(3))
-
-          if (predictedLabel === targetLabel) {
-            // Correct sign — use model confidence as score (0–100)
-            score = pred.score
-          } else {
-            // Wrong sign — small residual so meter isn't frozen at 0
-            score = Math.max(0, Math.round((1 - pred.confidence) * 10))
-          }
+      // ── ONNX classification path (alphabet signs) ──────────────────────────
+      const pred = await predictSign(processedVector)
+      if (pred) {
+        if (pred.label?.toUpperCase() === targetLabel) {
+          score = pred.score
+        } else {
+          // Wrong sign — small non-zero residual so the meter visibly moves
+          score = Math.max(0, Math.round((1 - pred.confidence) * 15))
         }
-      } catch (err) {
-        console.error('[Scorer] Inference error:', err)
       }
-    } else {
-      // Model not yet loaded or using custom variant — fall back to geometric distance scoring
-      console.log('[Scorer] Using geometric fallback for', targetLabel, '(variant form:', activeVariant, ')')
-      if (referenceRef.current) {
-        score = computeScore(processedVector, referenceRef.current)
-      }
+    } else if (!isAlphabet && referenceRef.current) {
+      // ── Distance-based scoring for word signs ──────────────────────────────
+      score = computeScore(processedVector, referenceRef.current)
+    } else if (isAlphabet && !modelReady && referenceRef.current) {
+      // ── Alphabet geometric fallback until ONNX model loads ─────────────────
+      score = computeScore(processedVector, referenceRef.current)
+    } else if (isVariant && activeVariant !== defaultForm && referenceRef.current) {
+      // ── Variant alternate-form geometric fallback ──────────────────────────
+      score = computeScore(processedVector, referenceRef.current)
     }
+    // else: no scoring path available → score stays 0
 
     // Sliding-window smoothing
     scoreWindowRef.current.push(score)
-    if (scoreWindowRef.current.length > SMOOTH_WINDOW) {
-      scoreWindowRef.current.shift()
-    }
+    if (scoreWindowRef.current.length > SMOOTH_WINDOW) scoreWindowRef.current.shift()
     const smoothed = smoothScores(scoreWindowRef.current)
 
-    // Push to live score meter
     onScoreUpdate?.(smoothed)
 
+    // Slightly higher threshold for commonly confused signs
     const STRICT_SIGNS = ['M', 'N', 'A', 'S', 'T']
-    const isStrictSign = STRICT_SIGNS.includes(sign?.label?.toUpperCase())
-    const threshold    = isStrictSign ? 55 : SCORE_THRESHOLD
+    const threshold    = STRICT_SIGNS.includes(targetLabel) ? 55 : SCORE_THRESHOLD
 
-    // Hold detection — only trigger once per attempt
+    // Hold detection — fire once per attempt after holding threshold for HOLD_DURATION_MS
     if (smoothed >= threshold) {
-      if (!holdStartRef.current) {
-        holdStartRef.current = Date.now()
-      }
+      if (!holdStartRef.current) holdStartRef.current = Date.now()
       const elapsed = Date.now() - holdStartRef.current
       if (elapsed >= HOLD_DURATION_MS && !isScoringRef.current) {
         isScoringRef.current = true
@@ -136,7 +124,6 @@ export function useSignScorer({
           scoreWindowRef.current   = []
           holdStartRef.current     = null
           isScoringRef.current     = false
-          // keep cooldown=true on success (overlay handles reset via resetScorer)
           if (!is_success) cooldownRef.current = false
         }, 1500)
       }
