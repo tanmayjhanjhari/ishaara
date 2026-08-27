@@ -81,25 +81,29 @@ export default function Lessons() {
         </div>
 
         {/* Sticky progress bar */}
-        <div className="bg-[#0b0c16]/75 backdrop-blur-xl border border-white/5 rounded-2xl p-4 mb-6 shadow-2xl relative overflow-hidden group">
-          <div className="absolute -inset-10 opacity-5 blur-xl pointer-events-none bg-gradient-to-tr from-indigo-500 to-purple-500" />
-          <div className="flex justify-between items-center text-[10px] font-black tracking-widest text-gray-400 mb-2 relative z-10">
-            <span>OVERALL PATH PROGRESS</span>
-            <span className="text-gray-300 font-bold bg-white/5 px-2 py-0.5 rounded border border-white/5">
-              {completedCount} / {lessons?.length || 0} Lessons
-            </span>
+        {isLoading ? (
+          <div className="h-[74px] w-full rounded-2xl bg-white/5 animate-pulse border border-white/5 mb-6" />
+        ) : (
+          <div className="bg-[#0b0c16]/75 backdrop-blur-xl border border-white/5 rounded-2xl p-4 mb-6 shadow-2xl relative overflow-hidden group">
+            <div className="absolute -inset-10 opacity-5 blur-xl pointer-events-none bg-gradient-to-tr from-indigo-500 to-purple-500" />
+            <div className="flex justify-between items-center text-[10px] font-black tracking-widest text-gray-400 mb-2 relative z-10">
+              <span>OVERALL PATH PROGRESS</span>
+              <span className="text-gray-300 font-bold bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                {completedCount} / {lessons?.length || 0} Lessons
+              </span>
+            </div>
+            <div className="bg-slate-950/80 rounded-full h-2 w-full p-[1px] border border-white/5 overflow-hidden relative z-10">
+              <div
+                className="h-full rounded-full transition-all duration-1000 ease-out"
+                style={{
+                  width: `${lessons?.length > 0 ? (completedCount / lessons.length) * 100 : 0}%`,
+                  background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)',
+                  boxShadow: '0 0 10px rgba(168,85,247,0.5)'
+                }}
+              />
+            </div>
           </div>
-          <div className="bg-slate-950/80 rounded-full h-2 w-full p-[1px] border border-white/5 overflow-hidden relative z-10">
-            <div
-              className="h-full rounded-full transition-all duration-1000 ease-out"
-              style={{
-                width: `${lessons?.length > 0 ? (completedCount / lessons.length) * 100 : 0}%`,
-                background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)',
-                boxShadow: '0 0 10px rgba(168,85,247,0.5)'
-              }}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Loading skeleton */}
         {isLoading && (

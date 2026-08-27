@@ -37,22 +37,26 @@ export default function Leaderboard() {
         </div>
 
         {/* Resets card */}
-        <div className="bg-gray-800/80 border border-gray-700/40 rounded-xl px-4 py-2.5 w-full sm:w-48 relative overflow-hidden shadow-md shrink-0">
-          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
-            <span>Resets in</span>
-            <span className="text-indigo-400 font-bold">{weekProgressPercent}%</span>
+        {isLoading ? (
+          <div className="w-full sm:w-48 h-[68px] rounded-xl bg-gray-800/40 animate-pulse border border-gray-700/20" />
+        ) : (
+          <div className="bg-gray-800/80 border border-gray-700/40 rounded-xl px-4 py-2.5 w-full sm:w-48 relative overflow-hidden shadow-md shrink-0">
+            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
+              <span>Resets in</span>
+              <span className="text-indigo-400 font-bold">{weekProgressPercent}%</span>
+            </div>
+            <div className="text-sm font-bold text-white font-mono leading-none py-0.5">
+              {formatCountdown(countdown.days, countdown.hours, countdown.minutes)}
+            </div>
+            {/* Thin week progress bar */}
+            <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden mt-2">
+              <div
+                className="h-full bg-indigo-500 transition-all duration-1000"
+                style={{ width: `${weekProgressPercent}%` }}
+              />
+            </div>
           </div>
-          <div className="text-sm font-bold text-white font-mono leading-none py-0.5">
-            {formatCountdown(countdown.days, countdown.hours, countdown.minutes)}
-          </div>
-          {/* Thin week progress bar */}
-          <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden mt-2">
-            <div
-              className="h-full bg-indigo-500 transition-all duration-1000"
-              style={{ width: `${weekProgressPercent}%` }}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Own rank summary card */}
