@@ -1,7 +1,7 @@
 import { normalizeLandmarks } from './normalize'
 import { REFERENCE_LANDMARKS } from '../data/referenceLandmarks'
 
-// Tunable constants
+// Tunable constants (used by useSignScorer for backwards compat)
 export const SCORE_THRESHOLD  = 35   // minimum score to count as holding
 export const SUCCESS_THRESHOLD = 55  // minimum score to count as success
 export const HOLD_DURATION_MS  = 350 // ms to hold sign before trigger
@@ -20,33 +20,23 @@ export function getVariantLandmarks(letter, variantType) {
       return defaultRef
     }
     if (variantType === 'two') {
-      // Synthesize from E (which is two-handed: left hand flat, right hand pointing index)
       const eRef = REFERENCE_LANDMARKS['E']
       if (!eRef) return defaultRef
       
       const left = JSON.parse(JSON.stringify(eRef.left_hand))
       const right = JSON.parse(JSON.stringify(eRef.right_hand))
       
-      // Calculate offset: middle finger tip (index 12) - index finger tip (index 8)
       const offset = {
         x: left[12].x - left[8].x,
         y: left[12].y - left[8].y,
         z: left[12].z - left[8].z
       }
-      
-      // Translate right hand (pointing finger) to touch the middle finger tip
       right.forEach(p => {
         p.x += offset.x
         p.y += offset.y
         p.z += offset.z
       })
-      
-      return {
-        letter: 'I',
-        uses_two_hands: true,
-        left_hand: left,
-        right_hand: right
-      }
+      return { letter: 'I', uses_two_hands: true, left_hand: left, right_hand: right }
     }
   }
 
@@ -55,33 +45,23 @@ export function getVariantLandmarks(letter, variantType) {
       return defaultRef
     }
     if (variantType === 'two') {
-      // Synthesize from E (which is two-handed)
       const eRef = REFERENCE_LANDMARKS['E']
       if (!eRef) return defaultRef
       
       const left = JSON.parse(JSON.stringify(eRef.left_hand))
       const right = JSON.parse(JSON.stringify(eRef.right_hand))
       
-      // Calculate offset: pinky finger tip (index 20) - index finger tip (index 8)
       const offset = {
         x: left[20].x - left[8].x,
         y: left[20].y - left[8].y,
         z: left[20].z - left[8].z
       }
-      
-      // Translate right hand to touch the pinky finger tip
       right.forEach(p => {
         p.x += offset.x
         p.y += offset.y
         p.z += offset.z
       })
-      
-      return {
-        letter: 'U',
-        uses_two_hands: true,
-        left_hand: left,
-        right_hand: right
-      }
+      return { letter: 'U', uses_two_hands: true, left_hand: left, right_hand: right }
     }
   }
 
@@ -90,108 +70,91 @@ export function getVariantLandmarks(letter, variantType) {
       return defaultRef
     }
     if (variantType === 'one') {
-      // Synthesize from E's dominant hand (right_hand) copied to left_hand (one-handed pointing)
       const eRef = REFERENCE_LANDMARKS['E']
       if (!eRef) return defaultRef
-      
       const left = JSON.parse(JSON.stringify(eRef.right_hand))
-      return {
-        letter: 'Z',
-        uses_two_hands: false,
-        left_hand: left,
-        right_hand: null
-      }
+      return { letter: 'Z', uses_two_hands: false, left_hand: left, right_hand: null }
     }
   }
 
   return defaultRef
 }
 
+/**
+ * Compute similarity score between user's hand vector and a reference vector.
+ * Both are Float32Array[126] (left63 + right63, normalized).
+ *
+ * Smart logic:
+ *   - If user only has one hand visible, compare that hand against the closest
+ *     active hand in the reference (best of left or right match).
+ *   - If reference is two-handed AND user has two hands, compare both.
+ *
+ * Returns: 0–100
+ */
 export function computeScore(userVector, referenceVector) {
-  // Both inputs: Float32Array of 126 values (normalized)
-  // Returns: number 0-100
-
   if (!userVector || !referenceVector) return 0
   if (userVector.length !== 126 || referenceVector.length !== 126) return 0
 
-  // Check if reference has non-zero right hand coordinates
-  let refRightActive = false
-  for (let i = 63; i < 126; i++) {
-    if (referenceVector[i] !== 0) {
-      refRightActive = true
-      break
+  // Detect which hands are active in user vector
+  let userLeftActive = false, userRightActive = false
+  for (let i = 0; i < 63; i++)  if (userVector[i] !== 0) { userLeftActive  = true; break }
+  for (let i = 63; i < 126; i++) if (userVector[i] !== 0) { userRightActive = true; break }
+
+  // Detect which hands are active in reference vector
+  let refLeftActive = false, refRightActive = false
+  for (let i = 0; i < 63; i++)  if (referenceVector[i] !== 0) { refLeftActive  = true; break }
+  for (let i = 63; i < 126; i++) if (referenceVector[i] !== 0) { refRightActive = true; break }
+
+  const userHands = (userLeftActive ? 1 : 0) + (userRightActive ? 1 : 0)
+  const refHands  = (refLeftActive  ? 1 : 0) + (refRightActive  ? 1 : 0)
+
+  // Helper: mean Euclidean distance between two 63-value half-vectors (21 landmarks × 3)
+  function handDist(a, aStart, b, bStart) {
+    let total = 0
+    for (let i = 0; i < 21; i++) {
+      const ai = aStart + i * 3
+      const bi = bStart + i * 3
+      const dx = a[ai] - b[bi]
+      const dy = a[ai+1] - b[bi+1]
+      const dz = a[ai+2] - b[bi+2]
+      total += Math.sqrt(dx*dx + dy*dy + dz*dz)
     }
-  }
-  // Check if reference has non-zero left hand coordinates
-  let refLeftActive = false
-  for (let i = 0; i < 63; i++) {
-    if (referenceVector[i] !== 0) {
-      refLeftActive = true
-      break
-    }
+    return total / 21
   }
 
-  const isTwoHanded = refLeftActive && refRightActive
   let score = 0
 
-  if (isTwoHanded) {
-    let totalDistance = 0
+  if (userHands >= 2 && refHands >= 2) {
+    // Both two-handed: compare full 126-vector (42 landmarks)
+    let total = 0
     for (let i = 0; i < 42; i++) {
       const idx = i * 3
       const dx  = userVector[idx]     - referenceVector[idx]
       const dy  = userVector[idx + 1] - referenceVector[idx + 1]
       const dz  = userVector[idx + 2] - referenceVector[idx + 2]
-      totalDistance += Math.sqrt(dx*dx + dy*dy + dz*dz)
+      total += Math.sqrt(dx*dx + dy*dy + dz*dz)
     }
-    const meanDistance = totalDistance / 42
-    score = Math.max(0, 100 - (meanDistance * DISTANCE_SCALE))
+    score = Math.max(0, 100 - (total / 42) * DISTANCE_SCALE)
   } else {
-    // One-handed sign: extract the active hand from user and reference
-    let userActive = null
-    let refActive = null
+    // One-handed user (or single-hand reference): compare the best matching hand
+    // Determine user's active hand slice
+    const userStart = userLeftActive ? 0 : (userRightActive ? 63 : null)
+    if (userStart === null) return 0
 
-    // User's active hand is the one that is non-zero
-    let userLeftActive = false
-    for (let i = 0; i < 63; i++) {
-      if (userVector[i] !== 0) {
-        userLeftActive = true
-        break
-      }
-    }
-    let userRightActive = false
-    for (let i = 63; i < 126; i++) {
-      if (userVector[i] !== 0) {
-        userRightActive = true
-        break
-      }
-    }
+    let bestDist = Infinity
 
-    if (userLeftActive) {
-      userActive = userVector.subarray(0, 63)
-    } else if (userRightActive) {
-      userActive = userVector.subarray(63, 126)
-    }
-
+    // Try matching user hand against each active reference hand
     if (refLeftActive) {
-      refActive = referenceVector.subarray(0, 63)
-    } else if (refRightActive) {
-      refActive = referenceVector.subarray(63, 126)
+      const d = handDist(userVector, userStart, referenceVector, 0)
+      if (d < bestDist) bestDist = d
+    }
+    if (refRightActive) {
+      const d = handDist(userVector, userStart, referenceVector, 63)
+      if (d < bestDist) bestDist = d
     }
 
-    if (userActive && refActive) {
-      let totalDistance = 0
-      for (let i = 0; i < 21; i++) {
-        const idx = i * 3
-        const dx  = userActive[idx]     - refActive[idx]
-        const dy  = userActive[idx + 1] - refActive[idx + 1]
-        const dz  = userActive[idx + 2] - refActive[idx + 2]
-        totalDistance += Math.sqrt(dx*dx + dy*dy + dz*dz)
-      }
-      const meanDistance = totalDistance / 21
-      score = Math.max(0, 100 - (meanDistance * DISTANCE_SCALE))
-    } else {
-      score = 0
-    }
+    if (bestDist === Infinity) return 0
+    score = Math.max(0, 100 - bestDist * DISTANCE_SCALE)
   }
 
   return Math.round(score)
@@ -215,37 +178,55 @@ export function smoothScores(window) {
   return Math.round(window.reduce((a, b) => a + b, 0) / window.length)
 }
 
+/**
+ * Convert a stored reference_landmarks value (from DB/API) to a Float32Array[126].
+ *
+ * Handles all formats:
+ *   - { left_hand: [{x,y,z}×21], right_hand: [{x,y,z}×21] }  ← alphabet + word signs
+ *   - [ {x,y,z} × 21 ]                                         ← legacy single-hand
+ *   - [ [x,y,z] × 21 ]                                         ← array-of-arrays (word v2)
+ */
 export function normalizeReference(referenceLandmarks) {
   if (!referenceLandmarks) return null
 
-  // Legacy single hand array of 21 landmarks
+  // Helper: convert one hand (21 landmarks) to a normalized Float32Array[63]
+  // Accepts both [{x,y,z}] and [[x,y,z]] formats
+  function toVector(hand21) {
+    if (!hand21 || hand21.length !== 21) return new Float32Array(63)
+
+    // Normalise format: [{x,y,z}] or [[x,y,z]]
+    const lms = hand21.map(lm => {
+      if (Array.isArray(lm)) return { x: lm[0] ?? 0, y: lm[1] ?? 0, z: lm[2] ?? 0 }
+      return { x: lm.x ?? 0, y: lm.y ?? 0, z: lm.z ?? 0 }
+    })
+
+    // Check wrist is non-zero (if all landmarks all-zero, skip)
+    if (lms.every(l => l.x === 0 && l.y === 0)) return new Float32Array(63)
+
+    return normalizeLandmarks(lms) || new Float32Array(63)
+  }
+
+  // Format: { left_hand, right_hand }
+  if (referenceLandmarks.left_hand !== undefined || referenceLandmarks.right_hand !== undefined) {
+    const leftVector  = toVector(referenceLandmarks.left_hand)
+    const rightVector = toVector(referenceLandmarks.right_hand)
+    const combined = new Float32Array(126)
+    combined.set(leftVector,  0)
+    combined.set(rightVector, 63)
+    return combined
+  }
+
+  // Format: flat array of 21 landmarks (legacy single-hand or array-of-arrays)
   if (Array.isArray(referenceLandmarks)) {
     if (referenceLandmarks.length === 21) {
-      const leftVector = new Float32Array(63)
-      const rightVector = normalizeLandmarks(referenceLandmarks)
-      
+      // Put single hand in left slot (matches useMediaPipe single-hand mapping)
+      const vec     = toVector(referenceLandmarks)
       const combined = new Float32Array(126)
-      combined.set(leftVector, 0)
-      combined.set(rightVector, 63)
+      combined.set(vec, 0)
       return combined
     }
     return null
   }
 
-  // Two hands object { left_hand, right_hand }
-  const leftHand = referenceLandmarks.left_hand || null
-  const rightHand = referenceLandmarks.right_hand || null
-
-  const leftVector = leftHand && leftHand.length === 21
-    ? normalizeLandmarks(leftHand)
-    : new Float32Array(63)
-
-  const rightVector = rightHand && rightHand.length === 21
-    ? normalizeLandmarks(rightHand)
-    : new Float32Array(63)
-
-  const combined = new Float32Array(126)
-  combined.set(leftVector, 0)
-  combined.set(rightVector, 63)
-  return combined
+  return null
 }

@@ -116,6 +116,7 @@ export default function LessonPlayer() {
     holdPercent.current = 0
     updateMeter(meterRef, 0)
     updateRing(ringRef, 0, false)
+    setAiSees(null)
   }, [signIndex, currentSign?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartPractice = useCallback(() => {
@@ -171,6 +172,7 @@ export default function LessonPlayer() {
   const [isPulsing, setIsPulsing]       = useState(false)
   const [signResults, setSignResults]   = useState([])
   const [hasTwoHands, setHasTwoHands]   = useState(false)
+  const [aiSees, setAiSees]             = useState(null)  // what the ONNX model predicts
   const { current: notification, enqueue, dismiss } = useNotificationQueue()
   const { data: xpData }                = useXPData()
   const [xpToastVisible, setXpToastVisible] = useState(false)
@@ -181,7 +183,8 @@ export default function LessonPlayer() {
   const sessionXP = signResults.reduce((sum, r) => sum + (r.xpEarned || 0), 0)
 
   // Direct DOM updates for 30fps performance (bypass React render loop)
-  const handleScoreUpdate = useCallback((smoothed) => {
+  // aiLabel is optional — only provided by ONNX path (alphabet signs)
+  const handleScoreUpdate = useCallback((smoothed, aiLabel) => {
     updateMeter(meterRef, smoothed)
     const isHandDetected = latestRawRef.current !== null
     const hint = getLiveHint(smoothed, isHandDetected)
@@ -194,7 +197,10 @@ export default function LessonPlayer() {
       holdPercent.current = 0
     }
     updateRing(ringRef, holdPercent.current, holdPercent.current >= 100)
-  }, [])
+
+    // Update AI sees label (only when model provides a prediction)
+    if (aiLabel !== undefined) setAiSees(aiLabel)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Score ready handler
   const handleScoreReady = useCallback(async (result) => {
@@ -896,6 +902,21 @@ export default function LessonPlayer() {
                         <>
                           {/* Score Meter */}
                           <ScoreMeter meterRef={meterRef} />
+
+                          {/* AI sees real-time feedback (alphabet signs only) */}
+                          {aiSees && currentSign?.category === 'alphabet' && (
+                            <p className="text-[11px] text-gray-400 mt-1.5 text-center">
+                              AI sees:{' '}
+                              <span
+                                className="font-bold"
+                                style={{ color: aiSees === currentSign?.label ? '#10b981' : '#ef4444' }}
+                              >
+                                {aiSees}
+                              </span>
+                              {' '}
+                              {aiSees === currentSign?.label ? '✓ Correct!' : '— Keep adjusting'}
+                            </p>
+                          )}
 
                           {/* Camera Hint */}
                           {currentSignData?.cameraHint && (
