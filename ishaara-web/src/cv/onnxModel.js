@@ -71,24 +71,40 @@ export function getLabelMap() {
 
 /**
  * Extract probabilities from an ONNX output tensor OR ZipMap.
- * skl2onnx exports probabilities as:
- *   - Float32 tensor [1, 26]  (zipmap=False — correct, what we want)
- *   - Sequence<Map<int64, float>> (zipmap=True — legacy, requires workaround)
+ * Handles all formats produced by skl2onnx / onnxmltools:
+ *   - Float32 tensor [1, 26]           (zipmap=False)
+ *   - Sequence<Map<int64, float>>      (ZipMap — onnxmltools LightGBM default)
+ *     where each Map is either a plain object OR a native JS Map
  */
 function extractProbs(probOut, numClasses) {
   if (!probOut) return null
 
-  // Case 1: Float32 tensor (zipmap=False) — .data is a typed array
+  // Case 1: Float32 tensor (zipmap=False) — .data is a typed array of numbers
   if (probOut.data && typeof probOut.data[0] === 'number') {
     return Array.from(probOut.data)
   }
 
-  // Case 2: ZipMap output — probOut.data is an array of Maps or objects
-  // Try to extract as object { "0": 0.01, "1": 0.95, ... }
+  // Case 2: ZipMap — probOut.data is an array with one element (the map for batch[0])
   try {
-    const mapObj = probOut.data?.[0]
-    if (mapObj && typeof mapObj === 'object') {
-      const arr = new Array(numClasses).fill(0)
+    // onnxruntime-web returns probOut as an object with a .cpuData or .data property
+    // For sequence outputs, the value is typically accessible directly
+    const rawData = probOut.data ?? probOut.cpuData ?? probOut
+
+    // The first element of the sequence corresponds to the first (only) sample
+    const mapObj = Array.isArray(rawData) ? rawData[0] : rawData
+
+    if (!mapObj) return null
+
+    const arr = new Array(numClasses).fill(0)
+
+    // Sub-case 2a: native JS Map (Map.prototype.forEach)
+    if (mapObj instanceof Map) {
+      mapObj.forEach((v, k) => { arr[parseInt(k)] = typeof v === 'number' ? v : 0 })
+      return arr
+    }
+
+    // Sub-case 2b: plain object { "0": 0.01, "1": 0.95, ... }
+    if (typeof mapObj === 'object') {
       for (const [k, v] of Object.entries(mapObj)) {
         arr[parseInt(k)] = typeof v === 'number' ? v : 0
       }
@@ -98,6 +114,7 @@ function extractProbs(probOut, numClasses) {
 
   return null
 }
+
 
 /**
  * Run inference on one frame of hand landmarks.
