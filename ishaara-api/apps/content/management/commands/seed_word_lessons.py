@@ -28,18 +28,25 @@ class Command(BaseCommand):
   help = 'Seed word lessons from extracted word landmarks json'
 
   def handle(self, *args, **kwargs):
-    # Find word_landmarks.json by searching upwards for ishaara-ml
-    current = os.path.abspath(__file__)
+    # Check bundled data directory first
+    bundled_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'word_landmarks.json')
+    bundled_path = os.path.abspath(bundled_path)
+
     json_path = None
-    while current:
-      parent = os.path.dirname(current)
-      candidate = os.path.join(parent, 'ishaara-ml', 'models', 'word_landmarks.json')
-      if os.path.exists(candidate):
-        json_path = candidate
-        break
-      if parent == current:
-        break
-      current = parent
+    if os.path.exists(bundled_path):
+      json_path = bundled_path
+    else:
+      # Find word_landmarks.json by searching upwards for ishaara-ml
+      current = os.path.abspath(__file__)
+      while current:
+        parent = os.path.dirname(current)
+        candidate = os.path.join(parent, 'ishaara-ml', 'models', 'word_landmarks.json')
+        if os.path.exists(candidate):
+          json_path = candidate
+          break
+        if parent == current:
+          break
+        current = parent
 
     if not json_path or not os.path.exists(json_path):
       # Fallback to simple relative path
