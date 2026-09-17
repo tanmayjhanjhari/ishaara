@@ -10,38 +10,11 @@
     <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
     <img src="https://img.shields.io/badge/MediaPipe-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="MediaPipe">
     <img src="https://img.shields.io/badge/ONNX_Runtime-005CED?style=for-the-badge&logo=onnx&logoColor=white" alt="ONNX Runtime">
-    <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS">
-    <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT">
-  </p>
-  <p align="center">
-    <!-- DEPLOYMENT LINK PLACEHOLDER -->
-    <a href="https://your-live-deployment-link-here.com" target="_blank">
-      <img src="https://img.shields.io/badge/🚀_Live_Demo-Visit_Ishaara-6366f1?style=for-the-badge" alt="Live Demo">
-    </a>
+  
   </p>
 </div>
 
 <br />
-
----
-
-## 📑 Table of Contents
-1. [Summary](#-summary)
-2. [What It Is](#-what-it-is)
-3. [Why Required](#-why-required)
-4. [Features](#-features)
-5. [How It Works](#-how-it-works)
-6. [Which Methods Used](#-which-methods-used)
-7. [Architecture](#-architecture)
-8. [Tech Stack](#-tech-stack)
-9. [API Specification](#-api-specification)
-10. [Example](#-example)
-11. [General Installation & Setup](#-general-installation--setup)
-12. [Deployment](#-deployment)
-13. [Performance](#-performance)
-14. [Future Scalability](#-future-scalability)
-15. [Author](#-author)
-16. [License](#-license)
 
 ---
 
@@ -132,41 +105,43 @@ Indian Sign Language (ISL) is a rich, distinct visual-spatial language with its 
 ## 🏗️ Architecture
 
 ```mermaid
-graph TD
+flowchart TD
     subgraph Client ["Frontend Client (React 19 + Vite)"]
-        UI[User Interface & Pages]
-        WCam[Webcam & Video Stream]
-        MP[MediaPipe Hand Tracker]
-        NORM[Vector Normalizer (126-d)]
-        SCORER[Hybrid Scorer & Finger Engine]
-        ONNX[ONNX Runtime Web (WASM)]
-        STATE[Zustand & TanStack Query]
-        
+        direction TB
+        UI["User Interface & Views"]
+        WCam["Webcam Video Stream"]
+        MP["MediaPipe Hand Tracker"]
+        NORM["126-d Vector Normalizer"]
+        SCORER["Hybrid Scorer & Finger Engine"]
+        ONNX["ONNX Runtime Web (WASM)"]
+        STATE["State Management (Zustand & TanStack Query)"]
+
         WCam --> MP
         MP --> NORM
         NORM --> SCORER
         NORM --> ONNX
-        SCORER --> UI
         ONNX --> SCORER
+        SCORER --> UI
         UI --> STATE
     end
 
     subgraph Server ["Backend API (Django REST Framework)"]
-        AUTH[JWT Authentication]
-        LESSONS[Content & Lesson Service]
-        PROG[Progress & Attempt Service]
-        GAME[Gamification Service (XP, Streaks, Badges)]
-        ADMIN[Admin & Audit Management]
+        direction TB
+        AUTH["JWT Authentication Service"]
+        LESSONS["Curriculum & Lesson Service"]
+        PROG["Progress & Attempt Service"]
+        GAME["Gamification Service (XP, Streaks, Badges)"]
+        ADMIN["Admin Management Service"]
     end
 
-    subgraph Database ["Data Persistence"]
-        PG[(PostgreSQL Database)]
+    subgraph Storage ["Data Persistence"]
+        PG[("PostgreSQL Database")]
     end
 
-    STATE -- "HTTPS / JSON / JWT" --> AUTH
-    STATE -- "GET /api/content/lessons/" --> LESSONS
-    STATE -- "POST /api/progress/attempt/" --> PROG
-    STATE -- "GET /api/gamification/leaderboard/" --> GAME
+    STATE -->|"REST API / JWT"| AUTH
+    STATE -->|"GET /api/content/lessons/"| LESSONS
+    STATE -->|"POST /api/progress/attempt/"| PROG
+    STATE -->|"GET /api/gamification/leaderboard/"| GAME
 
     AUTH --> PG
     LESSONS --> PG
@@ -346,17 +321,78 @@ cd ishaara
 
 ### Live Application Link
 > **[🌐 Click Here to Visit Ishaara Live Demo](https://your-live-deployment-link-here.com)**  
-> *(Insert production deployment URL above)*
+> *(Insert your production deployment URL above)*
 
-### Production Deployment Instructions
-- **Frontend (Vercel / Netlify / Cloudflare Pages)**:
-  - Build command: `npm run build`
-  - Output directory: `dist`
-  - Set environment variable: `VITE_API_URL=https://api.yourdomain.com/api`
-- **Backend (Render / Railway / AWS EC2 / DigitalOcean)**:
-  - Configure `gunicorn ishaara.wsgi:application`
-  - Connect managed PostgreSQL database.
-  - Set `DEBUG=False` and configure `ALLOWED_HOSTS` and `CORS_ALLOWED_ORIGINS`.
+---
+
+### Deployment Architecture: Should Frontend & Backend be Deployed Differently?
+
+**Yes, deploying the Frontend and Backend separately is strongly recommended:**
+
+| Tier | Component | Recommended Platforms | Why? |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | React 19 + Vite (`ishaara-web`) | **Vercel** / **Netlify** / **Cloudflare Pages** | Pure client-side SPA. 100% free hosting, global CDN edge caching, automatic SSL, and instant Git deployments. |
+| **Backend** | Django REST Framework (`ishaara-api`) | **Render** / **Railway** / **Fly.io** | Python/WSGI dynamic web service. Handles database migrations, JWT auth, and gamification logic. |
+| **Database** | PostgreSQL | **Neon.tech** / **Supabase** / **Render Postgres** | Managed serverless PostgreSQL. Free tier, automatic backups, SSL-enabled connections. |
+
+---
+
+### Step-by-Step Production Deployment Guide
+
+#### 1. Database Setup (e.g. Neon.tech / Render Postgres)
+1. Create a free account on [Neon.tech](https://neon.tech/) or [Render](https://render.com/).
+2. Create a new PostgreSQL database instance named `ishaara_db`.
+3. Copy your pooled connection URI string:
+   ```
+   postgres://user:password@ep-xyz.us-east-2.aws.neon.tech/ishaara_db?sslmode=require
+   ```
+
+#### 2. Backend Deployment (e.g. Render / Railway)
+1. Connect your GitHub repository (`tanmayjhanjhari/ishaara`).
+2. Create a **New Web Service**:
+   - **Root Directory**: `ishaara-api`
+   - **Environment**: `Python 3`
+   - **Build Command**:
+     ```bash
+     pip install -r requirements.txt && python manage.py migrate
+     ```
+   - **Start Command**:
+     ```bash
+     gunicorn ishaara.wsgi:application
+     ```
+3. Set the following **Environment Variables**:
+   ```env
+   DEBUG=False
+   SECRET_KEY=generate_a_secure_random_production_key_here
+   DATABASE_URL=postgres://user:password@ep-xyz.us-east-2.aws.neon.tech/ishaara_db?sslmode=require
+   ALLOWED_HOSTS=your-api-service.onrender.com,localhost
+   CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
+   ```
+4. Click **Deploy**. Once finished, note your public API URL (e.g. `https://your-api.onrender.com`).
+
+#### 3. Frontend Deployment (e.g. Vercel)
+1. Go to [Vercel](https://vercel.com/) and import your `ishaara` repository.
+2. Select **Root Directory**: `ishaara-web`.
+3. Framework Preset will auto-detect as **Vite**.
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+4. Add the **Environment Variable**:
+   ```env
+   VITE_API_URL=https://your-api.onrender.com/api
+   ```
+5. Click **Deploy**. Your application is now globally live on an edge CDN with automatic HTTPS!
+
+---
+
+### Alternative: All-in-One VPS Deployment (AWS EC2 / DigitalOcean Droplet)
+If you prefer hosting frontend, backend, and database on a single virtual server:
+1. Provision an **Ubuntu 22.04 LTS** server.
+2. Install `python3-venv`, `postgresql`, `nginx`, and `nodejs`.
+3. Configure PostgreSQL locally on `localhost:5432`.
+4. Run Django with Gunicorn supervised by `systemd` listening on `127.0.0.1:8000`.
+5. Build the frontend (`npm run build`) and point **Nginx** root to `ishaara-web/dist`.
+6. Configure Nginx reverse proxy so requests to `/api/` pass to `http://127.0.0.1:8000/api/` and all other routes serve `index.html` (SPA fallback).
+7. Issue a free Let's Encrypt SSL certificate using `certbot --nginx`.
 
 ---
 
