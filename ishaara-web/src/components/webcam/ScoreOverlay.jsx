@@ -3,30 +3,25 @@ import React, { useState, useEffect } from 'react'
 export default function ScoreOverlay({ score = 0, rating, xpEarned = 0, isVisible, onDismiss }) {
   const [count, setCount] = useState(0)
 
-  // Count up animation when visible
+  // Smooth count up animation when visible
   useEffect(() => {
-    if (!isVisible) {
+    if (!isVisible || score <= 0) {
       setCount(0)
       return
     }
 
-    if (score <= 0) {
-      setCount(0)
-      return
-    }
-
-    const duration = 300 // ms
-    const stepTime = Math.max(Math.floor(duration / score), 8)
-    let start = 0
+    const duration = 220 // ms
+    const startTime = Date.now()
     const timer = setInterval(() => {
-      start += 1
-      if (start >= score) {
-        setCount(score)
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(1, elapsed / duration)
+      // Smooth cubic ease out
+      const current = Math.round((1 - Math.pow(1 - progress, 3)) * score)
+      setCount(current)
+      if (progress >= 1) {
         clearInterval(timer)
-      } else {
-        setCount(start)
       }
-    }, stepTime)
+    }, 16)
 
     return () => clearInterval(timer)
   }, [isVisible, score])
@@ -43,7 +38,7 @@ export default function ScoreOverlay({ score = 0, rating, xpEarned = 0, isVisibl
   // Strictly 75% required across all lessons
   const isSuccess = score >= 75
   const ratingColor = ratingObj?.color || (isSuccess ? '#10b981' : (score >= 60 ? '#f59e0b' : '#ef4444'))
-  const ratingLabel = ratingObj?.label || (isSuccess ? 'Well Done!' : (score >= 60 ? 'Almost! (75% needed)' : 'Try Again'))
+  const ratingLabel = ratingObj?.label || (isSuccess ? 'Great!' : (score >= 60 ? 'Almost! (75% needed)' : 'Try Again'))
 
   // Automatic dismiss only on failure to allow seamless retrying
   useEffect(() => {
@@ -93,10 +88,10 @@ export default function ScoreOverlay({ score = 0, rating, xpEarned = 0, isVisibl
              style={{ borderColor: ratingColor, boxShadow: `inset 0 0 15px ${ratingColor}20` }}>
           <div className="flex flex-col items-center">
             <span className="text-4xl font-black text-white font-outfit">
-              {count}
+              {count}%
             </span>
-            <span className="text-[10px] uppercase tracking-widest text-text-muted">
-              match
+            <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold mt-0.5">
+              accuracy
             </span>
           </div>
         </div>

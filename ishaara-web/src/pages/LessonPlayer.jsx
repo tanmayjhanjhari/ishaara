@@ -83,6 +83,13 @@ export default function LessonPlayer() {
     }
   }, [lesson])
 
+  // Non-alphabet lessons (Words & Vocabulary) are locked for users (Coming Soon)
+  useEffect(() => {
+    if (lesson && lesson.category !== 'alphabet' && !isStaff) {
+      navigate('/lessons', { replace: true })
+    }
+  }, [lesson, isStaff, navigate])
+
   const completeCalled = useRef(false)
 
   const videoReadyRef = useRef(null)

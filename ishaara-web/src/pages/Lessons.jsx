@@ -12,14 +12,17 @@ export default function Lessons() {
   const { user }               = useAuthStore()
   const { data: lessons = [], isLoading } = useLessonPath()
   const [lockedTooltip, setLockedTooltip] = useState(null)
+  const [showRoadmapModal, setShowRoadmapModal] = useState(false)
 
-  const userLevel = (user?.is_staff || (user?.profile?.level || 1) >= 99) ? 99 : (user?.profile?.level || 1)
+  const isStaff   = !!user?.is_staff
+  const userLevel = (isStaff || (user?.profile?.level || 1) >= 99) ? 99 : (user?.profile?.level || 1)
   const sections  = lessons ? buildPathLayout(lessons) : []
 
-  // Find first available active lesson for quick-start
+  // Only consider active Alphabet lessons for quick-start continue
   const nextLesson = lessons?.find(l =>
-    getLessonStatus(l, userLevel) === 'available' ||
-    getLessonStatus(l, userLevel) === 'active')
+    l.category === 'alphabet' &&
+    (getLessonStatus(l, userLevel, isStaff) === 'available' ||
+     getLessonStatus(l, userLevel, isStaff) === 'active'))
 
   // Close tooltip on scroll or click outside
   useEffect(() => {
@@ -35,6 +38,10 @@ export default function Lessons() {
 
   const handleLockedClick = (lesson, e) => {
     e.stopPropagation()
+    if (lesson.category !== 'alphabet') {
+      setShowRoadmapModal(true)
+      return
+    }
     const rect = e.currentTarget.getBoundingClientRect()
     // Calculate page scroll offset for absolute fixed coordinates
     setLockedTooltip({
@@ -44,7 +51,8 @@ export default function Lessons() {
     })
   }
 
-  const completedCount = lessons?.filter(l => l.user_progress_status === 'completed').length || 0
+  const alphabetLessons = lessons?.filter(l => l.category === 'alphabet') || []
+  const completedAlphabetCount = alphabetLessons.filter(l => l.user_progress_status === 'completed').length
 
   return (
     <PageWrapper>
@@ -61,7 +69,7 @@ export default function Lessons() {
                 LEVEL {userLevel}
               </span>
               <span className="text-xs text-gray-400 font-bold">
-                • {completedCount} completed
+                • {completedAlphabetCount} completed
               </span>
             </div>
           </div>
@@ -87,16 +95,16 @@ export default function Lessons() {
           <div className="bg-[#0b0c16]/75 backdrop-blur-xl border border-white/5 rounded-2xl p-4 mb-6 shadow-2xl relative overflow-hidden group">
             <div className="absolute -inset-10 opacity-5 blur-xl pointer-events-none bg-gradient-to-tr from-indigo-500 to-purple-500" />
             <div className="flex justify-between items-center text-[10px] font-black tracking-widest text-gray-400 mb-2 relative z-10">
-              <span>OVERALL PATH PROGRESS</span>
+              <span>ALPHABET PATH PROGRESS</span>
               <span className="text-gray-300 font-bold bg-white/5 px-2 py-0.5 rounded border border-white/5">
-                {completedCount} / {lessons?.length || 0} Lessons
+                {completedAlphabetCount} / {alphabetLessons?.length || 1} Lessons
               </span>
             </div>
             <div className="bg-slate-950/80 rounded-full h-2 w-full p-[1px] border border-white/5 overflow-hidden relative z-10">
               <div
                 className="h-full rounded-full transition-all duration-1000 ease-out"
                 style={{
-                  width: `${lessons?.length > 0 ? (completedCount / lessons.length) * 100 : 0}%`,
+                  width: `${alphabetLessons?.length > 0 ? (completedAlphabetCount / alphabetLessons.length) * 100 : 0}%`,
                   background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)',
                   boxShadow: '0 0 10px rgba(168,85,247,0.5)'
                 }}
@@ -123,9 +131,11 @@ export default function Lessons() {
             key={section.id}
             section={section}
             userLevel={userLevel}
+            isStaff={isStaff}
             nextLessonId={nextLesson?.id}
             onLessonClick={(lesson) => navigate(`/lessons/${lesson.id}`)}
             onLockedClick={handleLockedClick}
+            onOpenRoadmap={() => setShowRoadmapModal(true)}
           />
         ))}
 
@@ -155,7 +165,7 @@ export default function Lessons() {
                 </span>
                 <button
                   onClick={() => setLockedTooltip(null)}
-                  className="text-gray-500 hover:text-gray-300 transition-colors text-xs font-bold focus:outline-none p-0.5"
+                  className="text-gray-500 hover:text-gray-300 transition-colors text-xs font-bold focus:outline-none p-0.5 cursor-pointer"
                 >
                   ✕
                 </button>
@@ -176,6 +186,92 @@ export default function Lessons() {
                   borderTop: '8px solid rgba(15, 11, 24, 0.98)',
                 }}
               />
+            </div>
+          </div>
+        )}
+
+        {/* Future Plans Roadmap Modal */}
+        {showRoadmapModal && (
+          <div 
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in"
+            onClick={() => setShowRoadmapModal(false)}
+          >
+            <div 
+              className="relative w-full max-w-md bg-[#0f0e22] border border-indigo-500/30 rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden text-left animate-scale-up"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Background ambient gradient */}
+              <div className="absolute -top-24 -right-24 w-60 h-60 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Modal Header */}
+              <div className="flex justify-between items-start mb-4 relative z-10">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-[10px] font-black tracking-wider text-indigo-300 uppercase">
+                  <span>☁️</span>
+                  <span>EXPANDING ISL HORIZONS</span>
+                </div>
+                <button
+                  onClick={() => setShowRoadmapModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <h2 className="text-xl font-black text-white tracking-tight uppercase font-outfit mb-2">
+                Words & Real-World Dialogues
+              </h2>
+
+              <p className="text-xs text-gray-300 leading-relaxed mb-5">
+                The full ISL alphabet is open and ready for practice! Non-alphabet modules (Greetings, Colours, Adjectives & Phrases) are currently in active production with certified ISL educators.
+              </p>
+
+              {/* Upcoming Feature Highlights */}
+              <div className="space-y-3 mb-6">
+                <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-base shrink-0">
+                    🎬
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white mb-0.5">3D Motion Gesture Tracking</h4>
+                    <p className="text-[11px] text-gray-400 leading-snug">
+                      Continuous multi-frame tracking capturing wrist trajectory, transitions, and natural hand fluidity.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5">
+                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-base shrink-0">
+                    💬
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white mb-0.5">Everyday Conversational Quests</h4>
+                    <p className="text-[11px] text-gray-400 leading-snug">
+                      Interactive real-world scenarios: ordering food, introductions, emergencies, and social greetings.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5">
+                  <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-base shrink-0">
+                    👥
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white mb-0.5">Certified Deaf Educator Datasets</h4>
+                    <p className="text-[11px] text-gray-400 leading-snug">
+                      500+ verified signs recorded with native ISL signers adhering to official Indian Sign Language standards.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Action */}
+              <button
+                onClick={() => setShowRoadmapModal(false)}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
+              >
+                GOT IT — CONTINUE PRACTICING ALPHABET
+              </button>
             </div>
           </div>
         )}

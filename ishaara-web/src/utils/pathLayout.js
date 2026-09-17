@@ -10,17 +10,36 @@ export function buildPathLayout(lessons) {
   ordered.forEach(lesson => {
     if (lesson.category !== currentCategory) {
       currentSection  = {
-        id:       lesson.category,
-        title:    getCategoryTitle(lesson.category),
-        icon:     getCategoryIcon(lesson.category),
-        color:    getCategoryColor(lesson.category),
-        lessons:  []
+        id:              lesson.category,
+        title:           getCategoryTitle(lesson.category),
+        icon:            getCategoryIcon(lesson.category),
+        color:           getCategoryColor(lesson.category),
+        isLockedSection: lesson.category !== 'alphabet',
+        lessons:         []
       }
       sections.push(currentSection)
       currentCategory = lesson.category
     }
     currentSection.lessons.push(lesson)
   })
+
+  // For non-alphabet sections (Words & Vocabulary), keep 3 preview locked lessons
+  // (e.g. Greetings, Colours, Adjectives) to showcase future roadmap behind cloud shroud
+  sections.forEach(sec => {
+    if (sec.id !== 'alphabet') {
+      sec.isLockedSection = true
+      // Filter or slice to 3 representative preview lessons
+      const preferred = sec.lessons.filter(l => 
+        ['greetings', 'colours', 'colors', 'adjectives'].some(k => l.title?.toLowerCase().includes(k))
+      )
+      if (preferred.length >= 2) {
+        sec.lessons = preferred.slice(0, 3)
+      } else {
+        sec.lessons = sec.lessons.slice(0, 3)
+      }
+    }
+  })
+
   return sections
 }
 
@@ -51,9 +70,13 @@ export function getCategoryColor(category) {
   return colors[category] || { bg:'#374151', light:'#f9fafb', ring:'#6b7280'}
 }
 
-export function getLessonStatus(lesson, userLevel) {
+export function getLessonStatus(lesson, userLevel, isStaff = false) {
+  // Non-alphabet lessons are locked for users even if alphabet is completed
+  if (lesson.category !== 'alphabet' && !isStaff) {
+    return 'locked'
+  }
   if (lesson.user_progress_status === 'completed') return 'completed'
-  if (userLevel >= 99) return 'available'
+  if (userLevel >= 99 && isStaff) return 'available'
   if (lesson.required_level > userLevel)            return 'locked'
   if (lesson.user_progress_status === 'in_progress') return 'active'
   return 'available'

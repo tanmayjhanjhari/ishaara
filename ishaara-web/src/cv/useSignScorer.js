@@ -92,13 +92,35 @@ export function useSignScorer({
     const modelReady  = isModelReady()
     const useONNX     = isAlphabet && modelReady && (!isVariant || activeVariant === defaultForm)
 
+    // Detect active hands in user's captured vector
+    let userLeftActive = false, userRightActive = false
+    for (let i = 0; i < 63; i++)  if (processedVector[i] !== 0) { userLeftActive  = true; break }
+    for (let i = 63; i < 126; i++) if (processedVector[i] !== 0) { userRightActive = true; break }
+    const userHands = (userLeftActive ? 1 : 0) + (userRightActive ? 1 : 0)
+
+    // Detect reference hands requirement
+    let refLeftActive = false, refRightActive = false
+    if (referenceRef.current) {
+      for (let i = 0; i < 63; i++)  if (referenceRef.current[i] !== 0) { refLeftActive  = true; break }
+      for (let i = 63; i < 126; i++) if (referenceRef.current[i] !== 0) { refRightActive = true; break }
+    }
+    const refHands = (refLeftActive ? 1 : 0) + (refRightActive ? 1 : 0)
+    const requiresTwoHands = refHands >= 2
+
     let geomScore = 0
     if (referenceRef.current) {
       geomScore = computeScore(processedVector, referenceRef.current)
     }
 
-    if (useONNX) {
-      // ONNX classification path for alphabet signs
+    // 1. STRICT HAND COUNT GATING:
+    // If the sign requires two hands (like Letter H) but user only shows 1 hand,
+    // the sign cannot pass. Cap at 15% and do not allow ONNX hallucination to pass.
+    if (requiresTwoHands && userHands < 2) {
+      score = 15
+      if (isFreq) console.log('[Scorer] Two hands required for', targetLabel, 'but user has 1 hand.')
+    } else if (useONNX) {
+      // 2. ONNX CLASSIFICATION PATH (Alphabet only)
+      // Only run inference and consider predictions if hand count is satisfied.
       const pred = await predictSign(processedVector)
       if (pred) {
         aiLabel = pred.label?.toUpperCase()
@@ -113,29 +135,34 @@ export function useSignScorer({
           }
         }
 
-        let aiScore = 0
-        if (aiLabel === targetLabel) {
-          // Exact prediction match: reward generously to clear the 75% threshold cleanly
-          aiScore = Math.min(100, Math.max(78, Math.round(pred.confidence * 80 + 26)))
-        } else if (targetProb >= 0.15) {
-          // Strong secondary probability in 26-class distribution
-          aiScore = Math.min(82, Math.round(targetProb * 140))
+        // PHYSICAL SKELETON GATE:
+        // Only allow ONNX to confirm and boost the sign if the physical hand landmarks
+        // are already in plausible alignment (geomScore >= 50).
+        // If someone shows a random open palm (where geomScore is < 45),
+        // ONNX predictions are out-of-distribution hallucinations and MUST NOT award points!
+        if (geomScore >= 50) {
+          let aiScore = 0
+          if (aiLabel === targetLabel) {
+            // Exact prediction match confirmed by physical skeleton: reward cleanly
+            aiScore = Math.min(100, Math.max(78, Math.round(geomScore * 0.5 + pred.confidence * 35 + 20)))
+          } else if (targetProb >= 0.20) {
+            // Strong secondary probability confirmed by physical skeleton
+            aiScore = Math.min(82, Math.round(geomScore * 0.6 + targetProb * 40))
+          } else {
+            aiScore = geomScore
+          }
+          score = Math.max(aiScore, geomScore)
         } else {
-          // Minor residual for active hand motion
-          aiScore = Math.max(0, Math.round((1 - pred.confidence) * 12))
+          // Hand shape/fingers do not match reference (e.g. open palm on Letter I or H)
+          // Rely strictly on geomScore (penalized to <= 15-30%)
+          score = geomScore
         }
-
-        // Blend with geometric match
-        score = (aiLabel === targetLabel || targetProb >= 0.20)
-          ? Math.max(aiScore, geomScore)
-          : Math.max(aiScore, Math.round(geomScore * 0.90))
 
         if (isFreq) console.log('[Scorer] alphabet',
           'expected:', targetLabel,
           'got:', aiLabel,
           'conf:', pred.confidence.toFixed(3),
           'targetProb:', targetProb.toFixed(3),
-          'aiScore:', aiScore,
           'geomScore:', geomScore,
           'finalScore:', score)
       } else {

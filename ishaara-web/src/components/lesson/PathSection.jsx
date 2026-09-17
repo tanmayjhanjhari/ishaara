@@ -1,16 +1,26 @@
 import React from 'react'
 import PathSectionHeader from './PathSectionHeader'
 import PathNode from './PathNode'
+import CloudSectionOverlay from './CloudSectionOverlay'
 import { getLessonStatus } from '../../utils/pathLayout'
 
-export default function PathSection({ section, userLevel, nextLessonId, onLessonClick, onLockedClick }) {
-  const completedCount = section.lessons.filter(
+export default function PathSection({
+  section,
+  userLevel,
+  isStaff,
+  nextLessonId,
+  onLessonClick,
+  onLockedClick,
+  onOpenRoadmap
+}) {
+  const isLockedSec = section.isLockedSection && !isStaff
+  const completedCount = isLockedSec ? 0 : section.lessons.filter(
     l => l.user_progress_status === 'completed'
   ).length
   const totalCount = section.lessons.length
   
   const heightPerNode = 150
-  const containerHeight = totalCount * heightPerNode
+  const containerHeight = Math.max(isLockedSec ? 420 : totalCount * heightPerNode, totalCount * heightPerNode)
 
   // Coordinates helper for the SVG and absolute nodes:
   // Layout width coordinate system is fixed to 400
@@ -98,8 +108,8 @@ export default function PathSection({ section, userLevel, nextLessonId, onLesson
 
         {/* Floating Nodes */}
         {section.lessons.map((lesson, i) => {
-          let status = getLessonStatus(lesson, userLevel)
-          if (lesson.id === nextLessonId && status === 'available') {
+          let status = getLessonStatus(lesson, userLevel, isStaff)
+          if (!isLockedSec && lesson.id === nextLessonId && status === 'available') {
             status = 'active'
           }
           const coords = getNodeCoordinates(i)
@@ -113,7 +123,7 @@ export default function PathSection({ section, userLevel, nextLessonId, onLesson
                 top: `${coords.y}px`,
                 left: `${xPercent}%`,
                 transform: 'translate(-50%, -50%)',
-                zIndex: 10
+                zIndex: isLockedSec ? 5 : 10
               }}
             >
               <PathNode
@@ -121,7 +131,9 @@ export default function PathSection({ section, userLevel, nextLessonId, onLesson
                 status={status}
                 index={i}
                 onClick={(e) => {
-                  if (status === 'locked') {
+                  if (isLockedSec) {
+                    onOpenRoadmap ? onOpenRoadmap() : onLockedClick && onLockedClick(lesson, e)
+                  } else if (status === 'locked') {
                     onLockedClick && onLockedClick(lesson, e)
                   } else {
                     onLessonClick(lesson)
@@ -131,6 +143,11 @@ export default function PathSection({ section, userLevel, nextLessonId, onLesson
             </div>
           )
         })}
+
+        {/* Cloud Shroud Overlay for Locked Future Sections */}
+        {isLockedSec && (
+          <CloudSectionOverlay onOpenRoadmap={onOpenRoadmap} />
+        )}
       </div>
     </div>
   )
