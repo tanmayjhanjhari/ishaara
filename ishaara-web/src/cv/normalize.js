@@ -37,6 +37,20 @@ export function normalizeLandmarks(landmarks21) {
     vector[i * 3 + 2] = ((lm.z ?? 0) - (wrist.z ?? 0)) / palmSize
   })
 
+  // Validate output
+  const hasNaN = Array.from(vector).some(v => isNaN(v))
+  if (hasNaN) {
+    console.error('[Normalize] Output contains NaN!')
+    return new Float32Array(63)
+  }
+
+  if (!window._normCount) window._normCount = 0
+  window._normCount++
+  if (window._normCount % 60 === 0) {
+    console.log('[Normalize] vector sample:',
+      Array.from(vector.slice(0, 6)).map(v => v.toFixed(3)))
+  }
+
   return vector
 }
 

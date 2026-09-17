@@ -1,15 +1,57 @@
+import { useState, useEffect } from 'react'
 import { useLeaderboard } from '../api/gamification'
 import LeaderboardRow from '../components/game/LeaderboardRow'
 import UserRankCard from '../components/game/UserRankCard'
 import { useCountdown, formatCountdown } from '../utils/countdown'
 import PageWrapper from '../components/layout/PageWrapper'
 import { Card, Button, Spinner, SkeletonLoader, EmptyState } from '../components/ui'
-import { ArrowRight, RotateCw } from 'lucide-react'
+import { ArrowRight, RotateCw, Zap, Flame, Trophy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export default function Leaderboard() {
   const { data, isLoading, isError, refetch } = useLeaderboard()
   const countdown = useCountdown(data?.resets_in_seconds || 0)
+  const [liveEntries, setLiveEntries] = useState([])
+  const [liveAlert, setLiveAlert] = useState(null)
+
+  useEffect(() => {
+    if (data?.entries) {
+      setLiveEntries(data.entries)
+    }
+  }, [data?.entries])
+
+  // Simulated bot race: random bot earns XP periodically to make the user feel the race
+  useEffect(() => {
+    if (!liveEntries.length) return
+    const interval = setInterval(() => {
+      setLiveEntries(prev => {
+        if (!prev || prev.length === 0) return prev
+        const botIndices = prev
+          .map((e, idx) => (!e.is_current_user ? idx : -1))
+          .filter(idx => idx !== -1)
+        if (!botIndices.length) return prev
+
+        const randomIdx = botIndices[Math.floor(Math.random() * botIndices.length)]
+        const targetBot = prev[randomIdx]
+        const xpBoost = [10, 15, 20, 25][Math.floor(Math.random() * 4)]
+        const updatedXp = (targetBot.weekly_xp || 0) + xpBoost
+
+        setLiveAlert({
+          name: targetBot.display_name,
+          xp: xpBoost,
+        })
+
+        const updated = prev.map((entry, idx) =>
+          idx === randomIdx ? { ...entry, weekly_xp: updatedXp } : entry
+        )
+
+        updated.sort((a, b) => b.weekly_xp - a.weekly_xp)
+        return updated.map((entry, idx) => ({ ...entry, rank: idx + 1 }))
+      })
+    }, 14000)
+
+    return () => clearInterval(interval)
+  }, [liveEntries.length])
 
   // Compute week progress percent
   const totalWeekSeconds = 7 * 86400
@@ -26,13 +68,17 @@ export default function Leaderboard() {
       `}</style>
 
       {/* Header section */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 select-none animate-fade-up">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 select-none animate-fade-up">
         <div>
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] font-bold text-emerald-400 mb-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            LIVE LEAGUE RACE ACTIVE
+          </div>
           <h1 className="font-outfit font-extrabold text-2xl md:text-3xl text-text-primary tracking-tight">
             Weekly Leaderboard
           </h1>
           <p className="text-sm text-text-muted mt-1">
-            Top learners by XP earned this week
+            Top learners by XP earned this week · 10 active racers competing right now
           </p>
         </div>
 
@@ -58,6 +104,20 @@ export default function Leaderboard() {
           </div>
         )}
       </div>
+
+      {/* Live race notification */}
+      {liveAlert && (
+        <div className="mb-4 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500/10 via-indigo-500/10 to-transparent border border-emerald-500/25 flex items-center justify-between text-xs text-emerald-300 animate-fade-in shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span><strong className="text-white">{liveAlert.name}</strong> just completed a sign practice!</span>
+          </div>
+          <span className="font-bold text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">+{liveAlert.xp} XP</span>
+        </div>
+      )}
 
       {/* Own rank summary card */}
       {data?.current_user && (
@@ -94,7 +154,7 @@ export default function Leaderboard() {
                 <span>Retry</span>
               </Button>
             </div>
-          ) : !data.entries || data.entries.length === 0 ? (
+          ) : (liveEntries.length === 0 && (!data.entries || data.entries.length === 0)) ? (
             <div className="p-12">
               <EmptyState
                 title="No activity yet this week"
@@ -103,12 +163,12 @@ export default function Leaderboard() {
             </div>
           ) : (
             <div className="divide-y divide-gray-800/30">
-              {data.entries.map((entry, idx) => (
+              {(liveEntries.length > 0 ? liveEntries : data.entries).map((entry, idx) => (
                 <div
                   key={entry.user_id}
                   style={{
                     animation: 'fadeUp 0.3s ease-out both',
-                    animationDelay: `${idx * 40}ms`
+                    animationDelay: `${idx * 30}ms`
                   }}
                 >
                   <LeaderboardRow

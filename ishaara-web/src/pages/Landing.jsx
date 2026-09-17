@@ -1,9 +1,11 @@
-import { useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowRight, Zap, Eye, Trophy, ChevronDown, Sparkles, Brain, Hand, Users, Star } from 'lucide-react'
+import { useState, useRef, useCallback } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowRight, Zap, Eye, Trophy, ChevronDown, Sparkles, Brain, Hand, Users, Star, X } from 'lucide-react'
 import Navbar from '../components/layout/Navbar'
 import HandConstellation from '../components/ui/HandConstellation'
 import { Button, Card, Badge } from '../components/ui'
+import { useAuthStore } from '../store/authStore'
+import WebcamPanel from '../components/webcam/WebcamPanel'
 
 /* ── Mouse-tracking glow hook ─────────────────────────────────────────── */
 function useMouseGlow(ref) {
@@ -66,10 +68,15 @@ function Particle({ style }) {
 }
 
 export default function Landing() {
+  const { isAuthenticated } = useAuthStore()
+  const navigate = useNavigate()
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
   const heroRef = useRef(null)
   const handleHeroMouse = useMouseGlow(heroRef)
   const featRef = useRef(null)
   const handleFeatMouse = useMouseGlow(featRef)
+
+  const startDestination = isAuthenticated ? '/lessons' : '/register'
 
   return (
     <div style={{ minHeight:'100vh', background:'#070714', overflowX:'hidden' }}>
@@ -117,14 +124,25 @@ export default function Landing() {
                 Your webcam becomes a constellation mirror, with every gesture scored by AI and every session building mastery.
               </p>
 
-              <div style={{ display:'flex', alignItems:'center', gap:20, flexWrap:'wrap', marginBottom:52 }}>
-                <Link to="/register" className="btn btn-primary btn-xl" style={{ gap:12, fontSize:'1.05rem', padding:'18px 40px' }}>
-                  Start Learning Free
+              <div style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap', marginBottom:52 }}>
+                <Link to={startDestination} className="btn btn-primary btn-xl" style={{ gap:12, fontSize:'1.05rem', padding:'18px 36px' }}>
+                  {isAuthenticated ? 'Go to Journey' : 'Start Learning Free'}
                   <ArrowRight size={20} />
                 </Link>
-                <Link to="/login" style={{ color:'#A78BFA', fontWeight:600, fontSize:'1rem', display:'flex', alignItems:'center', gap:6 }}>
-                  Sign in <ArrowRight size={15} />
-                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(true)}
+                  style={{ background:'rgba(6,182,212,0.12)', border:'1px solid rgba(6,182,212,0.3)', color:'#67E8F9', padding:'18px 28px', borderRadius:16, fontWeight:600, fontSize:'1rem', display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}
+                  className="hover:bg-cyan/20 transition-colors"
+                >
+                  <Eye size={18} />
+                  Preview Sign Mirror
+                </button>
+                {!isAuthenticated && (
+                  <Link to="/login" style={{ color:'#A78BFA', fontWeight:600, fontSize:'1rem', display:'flex', alignItems:'center', gap:6 }}>
+                    Sign in <ArrowRight size={15} />
+                  </Link>
+                )}
               </div>
 
               {/* Trust line */}
@@ -297,21 +315,70 @@ export default function Landing() {
             Just your hands, a camera, and the AI that never sleeps.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-5">
-            <Link to="/register">
+            <Link to={startDestination}>
               <Button variant="primary" size="lg" className="px-12 py-5 text-[1.1rem]">
-                Start for free
+                {isAuthenticated ? 'Go to Journey' : 'Start for free'}
                 <ArrowRight size={20} className="ml-3" />
               </Button>
             </Link>
-            <Link to="/lessons/a">
-              <Button variant="ghost" size="lg">
-                <Eye size={18} className="mr-2" />
-                Preview Sign Mirror
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              size="lg"
+              onClick={() => setShowPreviewModal(true)}
+              className="text-cyan border-cyan/30 hover:bg-cyan/10"
+            >
+              <Eye size={18} className="mr-2" />
+              Preview Sign Mirror
+            </Button>
           </div>
         </div>
       </section>
+
+      {/* ── LIVE SIGN MIRROR PREVIEW MODAL ── */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-2xl rounded-3xl p-6 bg-[#0B0B1E] border border-cyan/30 shadow-2xl shadow-cyan/10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan/15 border border-cyan/30 flex items-center justify-center text-cyan">
+                  <Eye size={20} />
+                </div>
+                <div>
+                  <h3 className="font-outfit font-bold text-lg text-text-primary">Sign Mirror Live Preview</h3>
+                  <p className="text-xs text-text-muted">Hold your hand up to test real-time 21-point tracking</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-text-muted hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="rounded-2xl overflow-hidden border border-white/10 mb-5">
+              <WebcamPanel showSkeleton={true} mediaPipeEnabled={true} />
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+              <span className="text-xs text-text-muted text-center sm:text-left">
+                🔒 Privacy guaranteed: 100% on-device vision. No frames ever leave your device.
+              </span>
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false)
+                  navigate(startDestination)
+                }}
+                className="btn btn-primary px-6 py-2.5 text-sm font-bold flex items-center gap-2 shrink-0"
+              >
+                <span>{isAuthenticated ? 'Open Journey' : 'Start Free Lessons'}</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── FOOTER ────────────────────────────────────────────────────── */}
       <footer className="border-t border-white/5 py-10 px-6">

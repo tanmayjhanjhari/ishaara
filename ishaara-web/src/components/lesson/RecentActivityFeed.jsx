@@ -26,8 +26,19 @@ const RecentActivityFeed = memo(function RecentActivityFeed({ attempts = [] }) {
         </div>
 
         {attempts.length === 0 ? (
-          <div className="text-xs text-gray-500 text-center py-6">
-            No activity yet — start your first lesson!
+          <div className="py-2 select-none">
+            <div className="p-3.5 rounded-xl bg-indigo-500/5 border border-indigo-500/15 mb-3">
+              <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold mb-1">
+                <span>⚡ Live Activity Stream</span>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Every sign you perform in front of your camera is scored in real time (0–100), recording XP gains and streak progress here!
+              </p>
+            </div>
+            <div className="flex items-center justify-between text-xs text-gray-500 px-1">
+              <span>Goal: Complete Sign A</span>
+              <span className="text-indigo-400 font-bold">+10 XP reward</span>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

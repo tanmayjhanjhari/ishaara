@@ -2,10 +2,10 @@ import { normalizeLandmarks } from './normalize'
 import { REFERENCE_LANDMARKS } from '../data/referenceLandmarks'
 
 // Tunable constants (used by useSignScorer for backwards compat)
-export const SCORE_THRESHOLD  = 35   // minimum score to count as holding
-export const SUCCESS_THRESHOLD = 55  // minimum score to count as success
-export const HOLD_DURATION_MS  = 350 // ms to hold sign before trigger
-export const SMOOTH_WINDOW     = 8   // frames to smooth over
+export const SCORE_THRESHOLD  = 30   // minimum score to count as holding
+export const SUCCESS_THRESHOLD = 48  // minimum score to count as success
+export const HOLD_DURATION_MS  = 250 // ms to hold sign before trigger
+export const SMOOTH_WINDOW     = 6   // frames to smooth over (responsive, low latency)
 export const DISTANCE_SCALE    = 200 // maps distance to score
 
 /**
@@ -162,9 +162,9 @@ export function computeScore(userVector, referenceVector) {
 
 
 export function getRating(score) {
-  if (score >= 90) return { label: 'Perfect! ✦', color: '#4f46e5', key: 'perfect' }
-  if (score >= 70) return { label: 'Great!',     color: '#10b981', key: 'great'   }
-  if (score >= 50) return { label: 'Good',        color: '#f59e0b', key: 'good'    }
+  if (score >= 85) return { label: 'Perfect! ✦', color: '#818cf8', key: 'perfect' }
+  if (score >= 65) return { label: 'Great!',     color: '#10b981', key: 'great'   }
+  if (score >= 48) return { label: 'Good',        color: '#f59e0b', key: 'good'    }
   return                  { label: 'Try Again',   color: '#ef4444', key: 'fail'    }
 }
 

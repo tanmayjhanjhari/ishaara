@@ -31,10 +31,22 @@ export default function ScoreOverlay({ score = 0, rating, xpEarned = 0, isVisibl
     return () => clearInterval(timer)
   }, [isVisible, score])
 
+  // Normalize rating object or string
+  const ratingObj = typeof rating === 'string'
+    ? {
+        key: rating.toLowerCase(),
+        label: rating,
+        color: ['good', 'great', 'perfect'].includes(rating.toLowerCase()) ? '#10b981' : '#ef4444'
+      }
+    : rating
+
+  const isSuccess = ratingObj?.key !== 'fail' && (score >= 48 || ['good', 'great', 'perfect'].includes(ratingObj?.key))
+  const ratingColor = ratingObj?.color || (isSuccess ? '#10b981' : '#ef4444')
+  const ratingLabel = ratingObj?.label || (isSuccess ? 'Well Done!' : 'Try Again')
+
   // Automatic dismiss only on failure to allow seamless retrying
   useEffect(() => {
     if (isVisible) {
-      const isSuccess = rating?.key !== 'fail'
       if (!isSuccess) {
         const timer = setTimeout(() => {
           onDismiss()
@@ -42,14 +54,9 @@ export default function ScoreOverlay({ score = 0, rating, xpEarned = 0, isVisibl
         return () => clearTimeout(timer)
       }
     }
-  }, [isVisible, onDismiss, rating])
+  }, [isVisible, onDismiss, isSuccess])
 
   if (!isVisible) return null
-
-  // Get color and label defaults
-  const ratingColor = rating?.color || '#ef4444'
-  const ratingLabel = rating?.label || 'Try Again'
-  const isSuccess = rating?.key !== 'fail'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 animate-fade-in">

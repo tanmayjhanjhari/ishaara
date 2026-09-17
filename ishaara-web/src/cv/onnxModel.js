@@ -41,14 +41,14 @@ export async function initModel() {
       { executionProviders: ['wasm'] }
     )
 
-    console.log('[ONNX] Input names :', session.inputNames)
-    console.log('[ONNX] Output names:', session.outputNames)
-
     const res = await fetch('/models/label_map.json')
     if (!res.ok) throw new Error(`label_map.json fetch failed: HTTP ${res.status}`)
     labelMap = await res.json()
 
-    console.log('[ONNX] ✅ Ready —', Object.keys(labelMap).length, 'classes:', Object.values(labelMap).join(','))
+    console.log('[ONNX] Loaded successfully')
+    console.log('[ONNX] Input:', session.inputNames)
+    console.log('[ONNX] Output:', session.outputNames)
+    console.log('[ONNX] Labels:', Object.values(labelMap).join(','))
     isInitializing = false
     return { success: true }
   } catch (err) {
@@ -137,9 +137,11 @@ export async function predictSign(vector126) {
   if (!hasNonZero) return null
 
   try {
+    const t0         = performance.now()
     const inputName  = session.inputNames[0]
     const tensor     = new ort.Tensor('float32', vector126, [1, 126])
     const results    = await session.run({ [inputName]: tensor })
+    const ms         = (performance.now() - t0).toFixed(1)
 
     // ── Extract predicted label index ────────────────────────────────────────
     const labelOut = results['label'] ?? results[session.outputNames[0]]
@@ -160,10 +162,27 @@ export async function predictSign(vector126) {
 
     const confidence = probs ? (probs[predIdx] ?? 0) : 0.5  // default 50% if probs unavailable
 
+    if (!window._predCount) window._predCount = 0
+    window._predCount++
+    if (window._predCount % 30 === 0) {
+      console.log('[ONNX]', {
+        label,
+        confidence: confidence.toFixed(3),
+        ms,
+        top3: probs ? probs
+          .map((p, i) => ({ l: labelMap[String(i)], p }))
+          .sort((a, b) => b.p - a.p)
+          .slice(0, 3)
+          .map(x => `${x.l}:${x.p.toFixed(2)}`)
+          .join(' | ') : 'N/A'
+      })
+    }
+
     return {
       label,
       confidence,
       score: Math.round(confidence * 100),
+      allProbs: probs
     }
   } catch (err) {
     console.error('[ONNX] Prediction error:', err)

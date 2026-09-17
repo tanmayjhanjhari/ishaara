@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import PageWrapper from '../components/layout/PageWrapper'
 import HandConstellation from '../components/ui/HandConstellation'
 import { useEffect, useState } from 'react'
@@ -163,12 +164,36 @@ export default function Profile() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-          <StatTile icon={Flame} value={streak || '—'} label="Streak" />
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 animate-fade-up" style={{ animationDelay: '0.1s' }}>
+          <StatTile icon={Flame} value={streak > 0 ? `${streak}d` : '0d (Start!)'} label="Streak" />
           <StatTile icon={Zap} value={xp.toLocaleString()} label="Total XP" />
           <StatTile icon={Star} value={signsMastered} label="Signs Mastered" />
-          <StatTile icon={TrendingUp} value={avgAccuracy > 0 ? `${avgAccuracy}%` : '—'} label="Avg Accuracy" />
+          <StatTile icon={TrendingUp} value={avgAccuracy > 0 ? `${avgAccuracy}%` : 'New Learner'} label="Avg Accuracy" />
           <StatTile icon={Calendar} value={lessonsCompleted} label="Lessons Done" />
+        </div>
+      )}
+
+      {/* ── First Milestone Target for new accounts ── */}
+      {xp === 0 && (
+        <div className="mb-10 p-5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/40 to-slate-900/40 border border-purple-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-up">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-xl shrink-0">
+              🥇
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">
+                  Next Milestone
+                </span>
+                <span className="text-xs text-text-muted">0 / 1 Completed</span>
+              </div>
+              <h4 className="font-bold text-white text-base mt-0.5">First Sign Badge</h4>
+              <p className="text-xs text-gray-400">Perform any sign with 55%+ accuracy to claim your first verified badge and 10 XP.</p>
+            </div>
+          </div>
+          <Link to="/lessons" className="btn btn-primary btn-sm px-5 py-2.5 font-bold shrink-0 whitespace-nowrap">
+            Practice Letter A →
+          </Link>
         </div>
       )}
 

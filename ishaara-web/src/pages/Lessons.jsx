@@ -13,7 +13,7 @@ export default function Lessons() {
   const { data: lessons = [], isLoading } = useLessonPath()
   const [lockedTooltip, setLockedTooltip] = useState(null)
 
-  const userLevel = user?.profile?.level || 1
+  const userLevel = (user?.is_staff || (user?.profile?.level || 1) >= 99) ? 99 : (user?.profile?.level || 1)
   const sections  = lessons ? buildPathLayout(lessons) : []
 
   // Find first available active lesson for quick-start

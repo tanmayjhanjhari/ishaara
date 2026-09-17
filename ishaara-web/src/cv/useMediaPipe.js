@@ -89,6 +89,21 @@ export function useMediaPipe({
         const hands = results?.landmarks || []
         const handednessList = results?.handedness || []
 
+        // DIAGNOSTIC — log every 60 frames
+        if (!window._diagCount) window._diagCount = 0
+        window._diagCount++
+        if (window._diagCount % 60 === 0) {
+          const firstHand = hands[0]
+          console.log('[MediaPipe]', {
+            handsDetected: hands.length,
+            landmarkCount: firstHand?.length || 0,
+            sample: firstHand ? {
+              wrist: firstHand[0],
+              palmRef: firstHand[9]
+            } : null
+          })
+        }
+
         // Canvas optimization: only clear and redraw if landmarks changed
         const prev = prevLandmarksRef.current || []
         let changed = false

@@ -54,54 +54,93 @@ class LeaderboardView(APIView):
         )
         user_map = {str(u.id): u for u in users}
 
-        # Build ranked entries
-        entries = []
-        for rank, user_id in enumerate(top20_user_ids, 1):
+        # 10 competitive game bots to make the user feel the live race
+        DEFAULT_BOTS = [
+            {'user_id': 'bot-1', 'display_name': 'Priya Sharma', 'level': 5, 'weekly_xp': 385},
+            {'user_id': 'bot-2', 'display_name': 'Aarav Patel', 'level': 4, 'weekly_xp': 320},
+            {'user_id': 'bot-3', 'display_name': 'Rohan Verma', 'level': 4, 'weekly_xp': 280},
+            {'user_id': 'bot-4', 'display_name': 'Sneha Iyer', 'level': 3, 'weekly_xp': 235},
+            {'user_id': 'bot-5', 'display_name': 'Kabir Mehta', 'level': 3, 'weekly_xp': 190},
+            {'user_id': 'bot-6', 'display_name': 'Divya Krishnan', 'level': 2, 'weekly_xp': 155},
+            {'user_id': 'bot-7', 'display_name': 'Tanvi Sethi', 'level': 2, 'weekly_xp': 120},
+            {'user_id': 'bot-8', 'display_name': 'Arjun Nair', 'level': 2, 'weekly_xp': 90},
+            {'user_id': 'bot-9', 'display_name': 'Ananya Roy', 'level': 1, 'weekly_xp': 65},
+            {'user_id': 'bot-10', 'display_name': 'Vikram Das', 'level': 1, 'weekly_xp': 40},
+        ]
+
+        # Combine real user entries
+        combined_entries = []
+        user_seen = False
+
+        for user_id in top20_user_ids:
             u = user_map.get(user_id)
             if not u:
                 continue
+            is_me = user_id == str(request.user.id)
+            if is_me:
+                user_seen = True
             display = (u.profile.display_name or u.username
                        if hasattr(u, 'profile') else u.username)
-            entries.append({
-                'rank':            rank,
+            combined_entries.append({
                 'user_id':         user_id,
                 'display_name':    display,
                 'level':           u.profile.level if hasattr(u, 'profile') else 1,
                 'weekly_xp':       top20_xp_map[user_id],
-                'is_current_user': user_id == str(request.user.id)
+                'is_current_user': is_me,
+                'is_bot':          False,
             })
 
-        # Current user rank (may be outside top 20)
-        all_user_ids = [str(e['user_id']) for e in weekly_xp]
+        # Add bots to ensure at least 10 active competitors
+        for bot in DEFAULT_BOTS:
+            if len(combined_entries) < 15:
+                combined_entries.append({
+                    'user_id':         bot['user_id'],
+                    'display_name':    bot['display_name'],
+                    'level':           bot['level'],
+                    'weekly_xp':       bot['weekly_xp'],
+                    'is_current_user': False,
+                    'is_bot':          True,
+                })
+
+        # If current user hasn't performed anything yet, add them with 0 points
+        if not user_seen:
+            me_display = (request.user.profile.display_name or request.user.username
+                          if hasattr(request.user, 'profile') else request.user.username)
+            me_level = request.user.profile.level if hasattr(request.user, 'profile') else 1
+            combined_entries.append({
+                'user_id':         str(request.user.id),
+                'display_name':    me_display,
+                'level':           me_level,
+                'weekly_xp':       0,
+                'is_current_user': True,
+                'is_bot':          False,
+            })
+
+        # Sort all entries by weekly_xp descending
+        combined_entries.sort(key=lambda x: (-x['weekly_xp'], not x['is_current_user']))
+
+        # Assign ranks
+        entries = []
+        current_user_rank = 1
         current_user_xp = 0
-        current_rank    = None
-
-        for i, e in enumerate(weekly_xp):
-            if str(e['user_id']) == str(request.user.id):
-                current_rank    = i + 1
-                current_user_xp = e['weekly_xp']
-                break
-
-        # XP needed to reach next rank
         xp_to_next = 0
-        if current_rank and current_rank > 1:
-          rank_above_xp = None
-          for e in weekly_xp:
-              if str(e['user_id']) != str(request.user.id):
-                  try:
-                      idx = all_user_ids.index(str(e['user_id']))
-                      if idx == current_rank - 2:
-                          rank_above_xp = e['weekly_xp']
-                          break
-                  except ValueError:
-                      pass
-          if rank_above_xp:
-              xp_to_next = rank_above_xp - current_user_xp + 1
+
+        for rank, entry in enumerate(combined_entries, 1):
+            entry['rank'] = rank
+            entries.append(entry)
+            if entry['is_current_user']:
+                current_user_rank = rank
+                current_user_xp = entry['weekly_xp']
+
+        # Calculate XP needed to overtake the person ahead
+        if current_user_rank > 1:
+            ahead_entry = entries[current_user_rank - 2]
+            xp_to_next = max(1, ahead_entry['weekly_xp'] - current_user_xp + 1)
 
         current_user_data = {
-            'rank':           current_rank,
+            'rank':           current_user_rank,
             'weekly_xp':      current_user_xp,
-            'xp_to_next_rank': xp_to_next
+            'xp_to_next_rank': xp_to_next,
         }
 
         return success_response({

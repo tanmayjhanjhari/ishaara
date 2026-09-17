@@ -71,9 +71,14 @@ export default function LessonPlayer() {
   // Keep completedSignIds synced when lesson data is loaded/changed
   useEffect(() => {
     if (lesson && lesson.signs) {
-      const completed = new Set(
-        lesson.signs.filter(s => s.is_completed).map(s => s.id)
-      )
+      let stored = []
+      try {
+        stored = JSON.parse(localStorage.getItem(`ishaara_completed_${lesson.id}`) || '[]')
+      } catch (e) {}
+      const completed = new Set([
+        ...lesson.signs.filter(s => s.is_completed).map(s => s.id),
+        ...stored
+      ])
       setCompletedSignIds(completed)
     }
   }, [lesson])
@@ -240,13 +245,21 @@ export default function LessonPlayer() {
       setCompletedSignIds(prev => {
         const next = new Set(prev)
         next.add(currentSign.id)
+        try {
+          const stored = JSON.parse(localStorage.getItem(`ishaara_completed_${lesson?.id}`) || '[]')
+          if (!stored.includes(currentSign.id)) {
+            localStorage.setItem(`ishaara_completed_${lesson?.id}`, JSON.stringify([...stored, currentSign.id]))
+          }
+        } catch (e) {}
         return next
       })
       queryClient.invalidateQueries({ queryKey: ['xp'] })
       queryClient.invalidateQueries({ queryKey: ['my-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['lessons'] })
+      queryClient.invalidateQueries({ queryKey: ['progress'] })
     }
 
-    setOverlayData({ score, rating, xpEarned: actualXpEarned })
+    setOverlayData({ score, rating, is_success, xpEarned: actualXpEarned })
     setOverlayVisible(true)
     holdPercent.current = 0
     updateRing(ringRef, 0, false)
@@ -292,7 +305,11 @@ export default function LessonPlayer() {
   }, [currentSign, lesson, postAttempt, enqueue, queryClient])
 
   const handleMotionSignComplete = useCallback(async () => {
-    await handleScoreReady({ score: 65, is_success: true, rating: 'Good' })
+    await handleScoreReady({
+      score: 80,
+      is_success: true,
+      rating: { key: 'great', label: 'Well Done! ✦', color: '#10b981' }
+    })
   }, [handleScoreReady])
 
   const currentSignData = getSignData(currentSign?.label)
@@ -324,7 +341,8 @@ export default function LessonPlayer() {
   // Dismiss score overlay
   const handleOverlayDismiss = useCallback(() => {
     setOverlayVisible(false)
-    if (overlayData?.score >= SUCCESS_THRESHOLD) {
+    const isSuccess = overlayData?.is_success || overlayData?.score >= SUCCESS_THRESHOLD || ['good', 'great', 'perfect'].includes(overlayData?.rating?.key)
+    if (isSuccess) {
       if (pendingLevelUp) {
         queryClient.invalidateQueries({ queryKey: ['xp'] })
         setPendingLevelUp(false)
@@ -658,8 +676,8 @@ export default function LessonPlayer() {
                   <div className="flex flex-wrap gap-2 pb-3 border-b border-white/5">
                     {signs.map((signItem, idx) => {
                       const isCurrent = idx === signIndex
-                      const isCompleted = completedSignIds.has(signItem.id)
-                      const unlocked = idx === 0 || completedSignIds.has(signItem.id) || completedSignIds.has(signs[idx - 1]?.id)
+                      const isCompleted = completedSignIds.has(signItem.id) || signItem.is_completed
+                      const unlocked = isStaff || idx === 0 || isCompleted || completedSignIds.has(signs[idx - 1]?.id) || signs[idx - 1]?.is_completed
                       
                       return (
                         <button
@@ -933,6 +951,17 @@ export default function LessonPlayer() {
 
                           {/* Feedback Coaching Tip */}
                           <FeedbackTip tip={feedbackTip} isVisible={!overlayVisible && !!feedbackTip} />
+
+                          {/* Manual practice confirmation option if camera/lighting makes auto-detection difficult */}
+                          <div className="mt-3 pt-2.5 border-t border-white/5">
+                            <button
+                              onClick={handleMotionSignComplete}
+                              className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-indigo-300/80 hover:text-white bg-indigo-500/5 hover:bg-indigo-500/15 border border-indigo-500/15 hover:border-indigo-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                              title="Click if camera or lighting is making auto-holding difficult — awards practice credit and advances"
+                            >
+                              <span>✓ I Practiced This Sign</span>
+                            </button>
+                          </div>
                         </>
                       )}
 
@@ -940,9 +969,17 @@ export default function LessonPlayer() {
                       {showSkipSuggestion && !completedSignIds.has(currentSign.id) && (
                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mt-4 text-center">
                           <p className="text-xs text-amber-300 font-semibold mb-3">
-                            Having trouble? Skip and come back later.
+                            Lighting or camera making it tricky?
                           </p>
                           <div className="flex gap-3">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              className="flex-1 font-bold text-xs"
+                              onClick={handleMotionSignComplete}
+                            >
+                              ✓ Mark Practiced
+                            </Button>
                             <Button
                               variant="secondary"
                               size="sm"
@@ -954,18 +991,6 @@ export default function LessonPlayer() {
                               }}
                             >
                               Skip Sign
-                            </Button>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              className="flex-1 font-bold text-xs"
-                              onClick={() => {
-                                attemptsForCurrentSign.current = 0
-                                setShowSkipSuggestion(false)
-                                scorer.resetScorer()
-                              }}
-                            >
-                              Try Again
                             </Button>
                           </div>
                         </div>

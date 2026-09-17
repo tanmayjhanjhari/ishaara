@@ -23,7 +23,8 @@ print("Converting to ONNX...")
 onx = convert_lightgbm(
     model,
     initial_types=[('float_input', FloatTensorType([None, 126]))],
-    target_opset=12
+    target_opset=12,
+    zipmap=False
 )
 
 onnx_path = 'models/ishaara_sign_classifier.onnx'
@@ -48,7 +49,7 @@ y_test = np.load('data/splits/y_test.npy')
 sk_preds  = model.predict(X_test[:200])
 ort_preds = sess.run(None, {inp_name: X_test[:200]})[0]
 mismatch  = sum(int(a) != int(b) for a, b in zip(sk_preds, ort_preds))
-print(f"ONNX validation: {mismatch}/200 mismatches  {'✅ PASSED' if mismatch == 0 else '⚠️  WARNING'}")
+print(f"ONNX validation: {mismatch}/200 mismatches  {'PASSED' if mismatch == 0 else 'WARNING'}")
 
 # ── label_map ──────────────────────────────────────────────────────────────────
 label_map = {str(i): cls for i, cls in enumerate(le.classes_)}
@@ -61,7 +62,7 @@ dest = '../ishaara-web/public/models/'
 os.makedirs(dest, exist_ok=True)
 shutil.copy(onnx_path,               dest + 'ishaara_sign_classifier.onnx')
 shutil.copy('models/label_map.json', dest + 'label_map.json')
-print(f"\n✅ Copied to {dest}")
+print(f"\nCopied to {dest}")
 print(f"   ishaara_sign_classifier.onnx  ({size_mb:.1f} MB)")
 print(f"   label_map.json")
-print(f"\nDONE — new model is live in the frontend!")
+print(f"\nDONE - new model is live in the frontend!")

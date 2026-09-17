@@ -61,6 +61,58 @@ export default function Dashboard() {
           />
         </div>
 
+        {/* Welcome Quest for new learners */}
+        {profile.xp_total === 0 && (
+          <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-indigo-950/70 via-purple-950/40 to-cyan-950/40 border border-indigo-500/30 shadow-xl shadow-indigo-950/30 relative overflow-hidden">
+            <div className="absolute -right-10 -bottom-10 w-48 h-48 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+              <div className="max-w-xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-xs font-bold text-indigo-300 mb-3">
+                  <Sparkles size={13} className="text-indigo-400" />
+                  <span>Beginner Launchpad · Quest 0/3</span>
+                </div>
+                <h2 className="text-xl md:text-2xl font-black font-outfit text-white mb-2">
+                  Ready to Start Signing?
+                </h2>
+                <p className="text-sm text-gray-300 leading-relaxed mb-4">
+                  ISHAARA evaluates your sign language in real time directly inside your browser. No video is ever sent to a server.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-black/30 border border-white/5">
+                    <span className="w-5 h-5 rounded-lg bg-indigo-500/20 text-indigo-300 font-black flex items-center justify-center shrink-0 text-[11px]">1</span>
+                    <span className="text-gray-200 font-medium">Turn on webcam</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-black/30 border border-white/5">
+                    <span className="w-5 h-5 rounded-lg bg-purple-500/20 text-purple-300 font-black flex items-center justify-center shrink-0 text-[11px]">2</span>
+                    <span className="text-gray-200 font-medium">Form Letter 'A'</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-black/30 border border-white/5">
+                    <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-300 font-black flex items-center justify-center shrink-0 text-[11px]">3</span>
+                    <span className="text-gray-200 font-medium">Score 55%+ to advance</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2.5 shrink-0">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="px-8 font-black shadow-lg shadow-indigo-500/30"
+                  onClick={() => navigate('/lessons')}
+                >
+                  Start Letter A Now →
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/leaderboard')}
+                  className="text-xs font-bold text-gray-400 hover:text-white transition-colors text-center"
+                >
+                  Check League Race Standings →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Optional Daily Challenge Banner */}
         {daily_challenge && (
           <Card className="mb-8 p-5 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900/40 border border-indigo-500/20 relative overflow-hidden select-none">

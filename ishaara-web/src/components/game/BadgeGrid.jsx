@@ -24,11 +24,18 @@ export default function BadgeGrid({ earned = [], locked = [] }) {
         </h3>
         
         {earned.length === 0 ? (
-          <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-            <EmptyState
-              title="No Badges Yet"
-              description="Complete your first sign attempt to start earning badges!"
-            />
+          <div className="bg-gradient-to-r from-purple-950/30 via-indigo-950/30 to-slate-900/40 border border-purple-500/20 rounded-2xl p-6 text-center select-none">
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-2xl mx-auto mb-3">
+              🏆
+            </div>
+            <h4 className="font-outfit font-bold text-white text-base mb-1">Beginner Trophy Case</h4>
+            <p className="text-xs text-gray-400 max-w-md mx-auto mb-4 leading-relaxed">
+              14 unique achievements await! Complete sign lessons, build daily streaks, and earn XP to unlock and display your badges here.
+            </p>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-indigo-300 font-bold">
+              <span>Next up:</span>
+              <span className="text-white font-black">First Sign Badge (1 attempt)</span>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">

@@ -53,6 +53,7 @@ export function getCategoryColor(category) {
 
 export function getLessonStatus(lesson, userLevel) {
   if (lesson.user_progress_status === 'completed') return 'completed'
+  if (userLevel >= 99) return 'available'
   if (lesson.required_level > userLevel)            return 'locked'
   if (lesson.user_progress_status === 'in_progress') return 'active'
   return 'available'
