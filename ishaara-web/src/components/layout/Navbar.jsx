@@ -119,7 +119,7 @@ export default function Navbar() {
 
                 {/* Level badge and XP Progress tooltip */}
                 <div className="relative group flex items-center cursor-pointer">
-                  <LevelBadge level={level} size="sm" />
+                  <LevelBadge level={level} size="sm" showTooltip={false} />
                   
                   {/* On hover tooltip showing full XP progress */}
                   <div className="absolute right-0 top-full mt-2 hidden group-hover:block z-50 bg-[#0c0c20]/95 border border-indigo-500/20 p-4 rounded-xl shadow-2xl w-64 pointer-events-none transition-all duration-200 backdrop-blur-md">

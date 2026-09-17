@@ -1,4 +1,4 @@
-export default function LevelBadge({ level = 1, size = 'md' }) {
+export default function LevelBadge({ level = 1, size = 'md', showTooltip = true }) {
   // Level Name
   let levelName = 'Beginner'
   if (level >= 6 && level <= 10) levelName = 'Learner'
@@ -24,10 +24,12 @@ export default function LevelBadge({ level = 1, size = 'md' }) {
       title={`Level ${level} — ${levelName}`}
     >
       <span>{level}</span>
-      {/* Tooltip on hover */}
-      <div className="absolute bottom-full mb-2 hidden group-hover:block z-50 bg-gray-900 border border-white/10 text-white text-[11px] font-bold py-1 px-2.5 rounded shadow-lg whitespace-nowrap pointer-events-none">
-        Level {level} — {levelName}
-      </div>
+      {/* Tooltip on hover — positioned below to prevent overflowing off top of screen */}
+      {showTooltip && (
+        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-50 bg-gray-900 border border-white/10 text-white text-[11px] font-bold py-1 px-2.5 rounded shadow-lg whitespace-nowrap pointer-events-none">
+          Level {level} — {levelName}
+        </div>
+      )}
     </div>
   )
 }
