@@ -6,7 +6,7 @@ export const SCORE_THRESHOLD  = 30   // minimum score to count as holding
 export const SUCCESS_THRESHOLD = 48  // minimum score to count as success
 export const HOLD_DURATION_MS  = 250 // ms to hold sign before trigger
 export const SMOOTH_WINDOW     = 6   // frames to smooth over (responsive, low latency)
-export const DISTANCE_SCALE    = 200 // maps distance to score
+export const DISTANCE_SCALE    = 65  // maps Euclidean distance to score (calibrated for real webcam hand positions)
 
 /**
  * Synthesizes reference landmarks for letters I, U, and Z based on active variant form.
@@ -70,10 +70,12 @@ export function getVariantLandmarks(letter, variantType) {
       return defaultRef
     }
     if (variantType === 'one') {
-      const eRef = REFERENCE_LANDMARKS['E']
-      if (!eRef) return defaultRef
-      const left = JSON.parse(JSON.stringify(eRef.right_hand))
-      return { letter: 'Z', uses_two_hands: false, left_hand: left, right_hand: null }
+      const vRef = REFERENCE_LANDMARKS['V']
+      if (!vRef) return defaultRef
+      
+      const left = JSON.parse(JSON.stringify(vRef.left_hand))
+      const right = JSON.parse(JSON.stringify(vRef.right_hand))
+      return { letter: 'Z', uses_two_hands: false, left_hand: left, right_hand: right }
     }
   }
 
@@ -81,13 +83,13 @@ export function getVariantLandmarks(letter, variantType) {
 }
 
 /**
- * Compute similarity score between user's hand vector and a reference vector.
+ * Compute geometric similarity score between user vector and reference vector.
  * Both are Float32Array[126] (left63 + right63, normalized).
  *
  * Smart logic:
- *   - If user only has one hand visible, compare that hand against the closest
- *     active hand in the reference (best of left or right match).
- *   - If reference is two-handed AND user has two hands, compare both.
+ *   - Supports mirrored / swapped hand orientations (matches whichever hand mapping is closer).
+ *   - If user has one hand visible, compares against the closest active reference hand.
+ *   - Calibrated distance scaling so natural webcam angles produce responsive 50–90+ scores.
  *
  * Returns: 0–100
  */
@@ -122,28 +124,24 @@ export function computeScore(userVector, referenceVector) {
     return total / 21
   }
 
-  let score = 0
+  let bestDist = Infinity
 
   if (userHands >= 2 && refHands >= 2) {
-    // Both two-handed: compare full 126-vector (42 landmarks)
-    let total = 0
-    for (let i = 0; i < 42; i++) {
-      const idx = i * 3
-      const dx  = userVector[idx]     - referenceVector[idx]
-      const dy  = userVector[idx + 1] - referenceVector[idx + 1]
-      const dz  = userVector[idx + 2] - referenceVector[idx + 2]
-      total += Math.sqrt(dx*dx + dy*dy + dz*dz)
-    }
-    score = Math.max(0, 100 - (total / 42) * DISTANCE_SCALE)
+    // Both two-handed: test both direct (L->L, R->R) and swapped (L->R, R->L)
+    const dDirect = (handDist(userVector, 0, referenceVector, 0) + handDist(userVector, 63, referenceVector, 63)) / 2
+    const dSwap   = (handDist(userVector, 0, referenceVector, 63) + handDist(userVector, 63, referenceVector, 0)) / 2
+    bestDist = Math.min(dDirect, dSwap)
+  } else if (userHands >= 2 && refHands === 1) {
+    // User has 2 hands, reference has 1: find best single-hand match
+    const targetRefStart = refLeftActive ? 0 : 63
+    const dL = handDist(userVector, 0, referenceVector, targetRefStart)
+    const dR = handDist(userVector, 63, referenceVector, targetRefStart)
+    bestDist = Math.min(dL, dR)
   } else {
-    // One-handed user (or single-hand reference): compare the best matching hand
-    // Determine user's active hand slice
+    // User has 1 hand: compare user active hand against both reference hands
     const userStart = userLeftActive ? 0 : (userRightActive ? 63 : null)
     if (userStart === null) return 0
 
-    let bestDist = Infinity
-
-    // Try matching user hand against each active reference hand
     if (refLeftActive) {
       const d = handDist(userVector, userStart, referenceVector, 0)
       if (d < bestDist) bestDist = d
@@ -152,12 +150,12 @@ export function computeScore(userVector, referenceVector) {
       const d = handDist(userVector, userStart, referenceVector, 63)
       if (d < bestDist) bestDist = d
     }
-
-    if (bestDist === Infinity) return 0
-    score = Math.max(0, 100 - bestDist * DISTANCE_SCALE)
   }
 
-  return Math.round(score)
+  if (bestDist === Infinity) return 0
+
+  const score = Math.max(0, Math.min(100, Math.round(100 - bestDist * DISTANCE_SCALE)))
+  return score
 }
 
 

@@ -8,10 +8,11 @@ export default function XPBar({ xp = 0, level = 1, nextLevelXP = 100, prevLevelX
   const [disableTransition, setDisableTransition] = useState(false)
 
   // Calculations
+  const isMaxLevel  = !nextLevelXP || level >= 50
   const xpIntoLevel = xp - prevLevelXP
-  const xpNeeded    = nextLevelXP - prevLevelXP
-  const fraction    = xpNeeded > 0 ? Math.max(0, Math.min(1, xpIntoLevel / xpNeeded)) : 1
-  const percentage  = Math.round(fraction * 100)
+  const xpNeeded    = !isMaxLevel ? (nextLevelXP - prevLevelXP) : 0
+  const fraction    = isMaxLevel ? 1 : (xpNeeded > 0 ? Math.max(0, Math.min(1, xpIntoLevel / xpNeeded)) : 1)
+  const percentage  = isMaxLevel ? 100 : Math.round(fraction * 100)
 
   const [displayPercent, setDisplayPercent] = useState(percentage)
 
@@ -89,7 +90,7 @@ export default function XPBar({ xp = 0, level = 1, nextLevelXP = 100, prevLevelX
           Level {displayLevel}
         </span>
         <span className="text-xs text-gray-400">
-          {xpNeeded > 0 ? `${xp - prevLevelXP} / ${xpNeeded} XP` : 'Max Level'}
+          {isMaxLevel ? 'Max Level · Master' : `${Math.max(0, xp - prevLevelXP)} / ${xpNeeded} XP`}
         </span>
       </div>
 

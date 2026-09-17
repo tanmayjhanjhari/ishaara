@@ -23,20 +23,20 @@ export default function Dashboard() {
   if (isError) return <DashboardError />
 
   const {
-    profile,
-    streak,
+    profile = {},
+    streak = {},
     weak_signs = [],
     recent_attempts = [],
     lesson_progress = [],
     recent_badges = [],
     daily_challenge,
-  } = data
+  } = data || {}
 
   return (
     <PageWrapper>
       <div className="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
         {/* Streak reminder banner if not active today */}
-        {!streak.is_active_today && streak.current > 0 && (
+        {!streak?.is_active_today && (streak?.current || 0) > 0 && (
           <StreakReminderBanner
             currentStreak={streak.current}
             onStartPractice={() => navigate('/lessons')}
@@ -45,18 +45,18 @@ export default function Dashboard() {
 
         {/* Greeting */}
         <DashboardGreeting
-          displayName={profile.display_name}
-          currentStreak={streak.current}
-          attemptsToday={profile.attempts_today}
+          displayName={profile?.display_name || 'Learner'}
+          currentStreak={streak?.current || 0}
+          attemptsToday={profile?.attempts_today || 0}
         />
 
         {/* XP Bar — full width */}
         <div className="mb-8">
           <XPBar
-            xp={profile.xp_total}
-            level={profile.level}
-            nextLevelXP={profile.next_level_xp}
-            prevLevelXP={profile.prev_level_xp}
+            xp={profile?.xp_total || 0}
+            level={profile?.level || 1}
+            nextLevelXP={profile?.next_level_xp}
+            prevLevelXP={profile?.prev_level_xp || 0}
             animated={true}
           />
         </div>

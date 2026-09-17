@@ -156,8 +156,8 @@ class DashboardView(APIView):
             .order_by('-earned_at')[:3]
         )
 
-        # XP thresholds (corrected formula indices to match actual levels)
-        level        = profile.level
+        # XP thresholds (safe clamped index to prevent IndexError on high/admin levels)
+        level        = min(max(1, profile.level), 50)
         prev_xp      = LEVEL_THRESHOLDS[level - 1] if level > 0 else 0
         next_xp      = LEVEL_THRESHOLDS[level] if level < 50 else None
 

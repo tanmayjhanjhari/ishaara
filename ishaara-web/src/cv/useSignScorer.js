@@ -3,7 +3,7 @@ import {
   computeScore, smoothScores, normalizeReference, getRating, getVariantLandmarks,
   SMOOTH_WINDOW
 } from './scoring'
-import { predictSign, isModelReady } from './onnxModel'
+import { predictSign, isModelReady, getLabelMap } from './onnxModel'
 
 // Minimum ms between inference calls — prevents flooding the WASM runtime
 const INFERENCE_INTERVAL_MS = 80

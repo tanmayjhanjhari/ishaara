@@ -227,7 +227,7 @@ class XPView(APIView):
     def get(self, request):
         profile = request.user.profile
         from services.xp_service import LEVEL_THRESHOLDS
-        current_level = profile.level
+        current_level = min(max(1, profile.level), 50)
         prev_threshold = LEVEL_THRESHOLDS[current_level - 1] if current_level >= 1 else 0
         next_threshold = LEVEL_THRESHOLDS[current_level] if current_level < 50 else None
         return success_response({
