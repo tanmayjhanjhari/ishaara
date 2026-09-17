@@ -7,3 +7,4 @@ python-decouple
 gunicorn
 Pillow
 django-filter
+dj-database-url
