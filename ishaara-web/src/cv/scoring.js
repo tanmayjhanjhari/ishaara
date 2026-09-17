@@ -1,12 +1,12 @@
-import { normalizeLandmarks } from './normalize'
-import { REFERENCE_LANDMARKS } from '../data/referenceLandmarks'
+import { normalizeLandmarks } from './normalize.js'
+import { REFERENCE_LANDMARKS } from '../data/referenceLandmarks.js'
 
 // Tunable constants (used by useSignScorer for backwards compat)
 export const SCORE_THRESHOLD  = 30   // minimum score to count as holding
-export const SUCCESS_THRESHOLD = 48  // minimum score to count as success
-export const HOLD_DURATION_MS  = 250 // ms to hold sign before trigger
+export const SUCCESS_THRESHOLD = 75  // minimum 75% required to move to next sign across all lessons
+export const HOLD_DURATION_MS  = 300 // ms to hold sign before trigger
 export const SMOOTH_WINDOW     = 6   // frames to smooth over (responsive, low latency)
-export const DISTANCE_SCALE    = 65  // maps Euclidean distance to score (calibrated for real webcam hand positions)
+export const DISTANCE_SCALE    = 42  // calibrated for real webcam hand positions (75%+ achievable on correct poses)
 
 /**
  * Synthesizes reference landmarks for letters I, U, and Z based on active variant form.
@@ -130,7 +130,17 @@ export function computeScore(userVector, referenceVector) {
     // Both two-handed: test both direct (L->L, R->R) and swapped (L->R, R->L)
     const dDirect = (handDist(userVector, 0, referenceVector, 0) + handDist(userVector, 63, referenceVector, 63)) / 2
     const dSwap   = (handDist(userVector, 0, referenceVector, 63) + handDist(userVector, 63, referenceVector, 0)) / 2
-    bestDist = Math.min(dDirect, dSwap)
+    const twoHandMatch = Math.min(dDirect, dSwap)
+
+    // Also test best single-hand match (in case one hand in dataset or user is resting on desk)
+    const dL0 = handDist(userVector, 0, referenceVector, 0)
+    const dL1 = handDist(userVector, 0, referenceVector, 63)
+    const dR0 = handDist(userVector, 63, referenceVector, 0)
+    const dR1 = handDist(userVector, 63, referenceVector, 63)
+    const bestSingle = Math.min(dL0, dL1, dR0, dR1)
+
+    // Allow single hand match with minor margin if one hand is resting
+    bestDist = Math.min(twoHandMatch, bestSingle + 0.12)
   } else if (userHands >= 2 && refHands === 1) {
     // User has 2 hands, reference has 1: find best single-hand match
     const targetRefStart = refLeftActive ? 0 : 63
@@ -160,10 +170,10 @@ export function computeScore(userVector, referenceVector) {
 
 
 export function getRating(score) {
-  if (score >= 85) return { label: 'Perfect! ✦', color: '#818cf8', key: 'perfect' }
-  if (score >= 65) return { label: 'Great!',     color: '#10b981', key: 'great'   }
-  if (score >= 48) return { label: 'Good',        color: '#f59e0b', key: 'good'    }
-  return                  { label: 'Try Again',   color: '#ef4444', key: 'fail'    }
+  if (score >= 90) return { label: 'Perfect! ✦',            color: '#818cf8', key: 'perfect' }
+  if (score >= 75) return { label: 'Great!',                color: '#10b981', key: 'great'   }
+  if (score >= 60) return { label: 'Almost! (75% needed)',  color: '#f59e0b', key: 'almost'  }
+  return                  { label: 'Try Again',              color: '#ef4444', key: 'fail'    }
 }
 
 export function computeXP(score, baseXP) {
@@ -206,8 +216,22 @@ export function normalizeReference(referenceLandmarks) {
 
   // Format: { left_hand, right_hand }
   if (referenceLandmarks.left_hand !== undefined || referenceLandmarks.right_hand !== undefined) {
-    const leftVector  = toVector(referenceLandmarks.left_hand)
-    const rightVector = toVector(referenceLandmarks.right_hand)
+    let lh = referenceLandmarks.left_hand
+    let rh = referenceLandmarks.right_hand
+
+    // Detect and discard resting lap hand from dataset (wrist y > 0.38 while signing hand wrist y < 0.30)
+    if (Array.isArray(lh) && Array.isArray(rh) && lh.length === 21 && rh.length === 21) {
+      const ly = (Array.isArray(lh[0]) ? lh[0][1] : lh[0]?.y) ?? 0
+      const ry = (Array.isArray(rh[0]) ? rh[0][1] : rh[0]?.y) ?? 0
+      if (ly > 0.38 && ry < 0.30) {
+        lh = null  // Left hand was resting in lap
+      } else if (ry > 0.38 && ly < 0.30) {
+        rh = null  // Right hand was resting in lap
+      }
+    }
+
+    const leftVector  = toVector(lh)
+    const rightVector = toVector(rh)
     const combined = new Float32Array(126)
     combined.set(leftVector,  0)
     combined.set(rightVector, 63)

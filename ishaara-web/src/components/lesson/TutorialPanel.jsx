@@ -55,16 +55,18 @@ export default function TutorialPanel({
     : (signData?.handShape || (signData?.hands === 'one' ? 'One-handed Pose' : 'Two-handed Pose'))
   const watchOut      = signData?.watchOut      || 'Keep your hand steady in the frame.'
 
-  // Dynamic steps based on active variant or fallback for word/phrase signs
-  let steps = getVariantSteps(letter, activeVariant)
-  if (steps.length === 0) {
+  // Authentic steps prioritization: first check signData.steps (from islWords/islAlphabet), then getVariantSteps, then description, then fallback
+  let steps = (signData?.steps && signData.steps.length > 0)
+    ? signData.steps
+    : getVariantSteps(letter, activeVariant)
+  if (!steps || steps.length === 0) {
     if (sign.description) {
       steps = sign.description
         .split(/[.!?]+/)
         .map(s => s.trim())
         .filter(s => s.length > 5)
     }
-    if (steps.length === 0) {
+    if (!steps || steps.length === 0) {
       steps = [
         `Study the target hand shape for "${letter}".`,
         'Position your hands steady in front of the camera.',
@@ -105,6 +107,25 @@ export default function TutorialPanel({
   if (ref) {
     leftHand  = ref.left_hand  || null
     rightHand = ref.right_hand || null
+  }
+
+  // Active hand isolation for one-handed signs or resting lap hands
+  const isOneHanded = signData?.hands === 'one' || (signData?.hands === 'variant' && activeVariant === 'one')
+  if (isOneHanded && (leftHand || rightHand)) {
+    const activeHand = (rightHand && rightHand.some(p => (p.x || 0) !== 0 || (p.y || 0) !== 0))
+      ? rightHand
+      : leftHand
+    leftHand = null
+    rightHand = activeHand
+  } else if (leftHand && rightHand) {
+    // Check if one hand is resting at lap/desk in video dataset (wrist y > 0.38 while other wrist y < 0.30)
+    const lw = leftHand[0]?.y ?? 0
+    const rw = rightHand[0]?.y ?? 0
+    if (lw > 0.38 && rw < 0.30) {
+      leftHand = null
+    } else if (rw > 0.38 && lw < 0.30) {
+      rightHand = null
+    }
   }
 
   const getFontSizeClass = (text) => {
@@ -151,6 +172,17 @@ export default function TutorialPanel({
               <div className="text-left mt-1 w-full">
                 <p className="text-sm font-bold text-white leading-tight">{handShape}</p>
                 <p className="text-[11px] text-gray-400 mt-0.5">{categoryLabel} Lesson</p>
+                {signData?.gesture && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-full px-2 py-0.5 mt-1.5">
+                    <span>{signData.emoji || '✨'}</span>
+                    <span>{signData.gesture}</span>
+                  </span>
+                )}
+                {signData?.motionCues && (
+                  <p className="text-[10px] text-indigo-300/80 font-semibold mt-1">
+                    ↔️ {signData.motionCues}
+                  </p>
+                )}
                 {handsBadge && (
                   <span
                     className="inline-block text-[9px] font-extrabold px-2.5 py-0.5 rounded-full mt-1.5 border"

@@ -44,11 +44,13 @@ export function normalizeLandmarks(landmarks21) {
     return new Float32Array(63)
   }
 
-  if (!window._normCount) window._normCount = 0
-  window._normCount++
-  if (window._normCount % 60 === 0) {
-    console.log('[Normalize] vector sample:',
-      Array.from(vector.slice(0, 6)).map(v => v.toFixed(3)))
+  if (typeof window !== 'undefined') {
+    if (!window._normCount) window._normCount = 0
+    window._normCount++
+    if (window._normCount % 60 === 0) {
+      console.log('[Normalize] vector sample:',
+        Array.from(vector.slice(0, 6)).map(v => v.toFixed(3)))
+    }
   }
 
   return vector

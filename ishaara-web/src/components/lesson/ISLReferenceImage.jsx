@@ -40,6 +40,26 @@ export default function ISLReferenceImage({ letter, sign, size = 'large', active
     rightHand = ref.right_hand || null
   }
 
+  // Active hand isolation for one-handed signs or resting non-dominant hands
+  const isOneHanded = signData?.hands === 'one' || (signData?.hands === 'variant' && activeVariant === 'one')
+  if (isOneHanded && (leftHand || rightHand)) {
+    // Pick the active signing hand (prefer rightHand if valid, else leftHand)
+    const activeHand = (rightHand && rightHand.some(p => (p.x || 0) !== 0 || (p.y || 0) !== 0))
+      ? rightHand
+      : leftHand
+    leftHand = null
+    rightHand = activeHand
+  } else if (leftHand && rightHand) {
+    // Check if one hand is resting in lap (wrist y > 0.38 while other wrist y < 0.30)
+    const lw = leftHand[0]?.y ?? 0
+    const rw = rightHand[0]?.y ?? 0
+    if (lw > 0.38 && rw < 0.30) {
+      leftHand = null
+    } else if (rw > 0.38 && lw < 0.30) {
+      rightHand = null
+    }
+  }
+
   const getFontSizeClass = (text) => {
     if (text.length <= 1) return 'text-8xl md:text-9xl'
     if (text.length <= 4) return 'text-5xl md:text-6xl'
@@ -128,6 +148,17 @@ export default function ISLReferenceImage({ letter, sign, size = 'large', active
             <p className="text-xs font-semibold text-indigo-200/80 text-center mt-2 max-w-[200px]">
               {signData.handShape}
             </p>
+          )}
+          {signData.gesture && (
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-0.5 mt-2">
+              <span>{signData.emoji || '✨'}</span>
+              <span>{signData.gesture}</span>
+            </span>
+          )}
+          {signData.motionCues && (
+            <span className="text-[10px] text-indigo-300/80 font-semibold mt-1">
+              ↔️ {signData.motionCues}
+            </span>
           )}
         </div>
 

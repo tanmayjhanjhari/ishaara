@@ -442,8 +442,11 @@ export const ISL_ALPHABET = {
   }
 }
 
+import { getWordSignData } from './islWords'
+
 export function getSignData(letter) {
-  return ISL_ALPHABET[letter?.toUpperCase()] || null
+  if (!letter) return null
+  return ISL_ALPHABET[letter?.toUpperCase()] || getWordSignData(letter) || null
 }
 
 export function getSteps(letter) {

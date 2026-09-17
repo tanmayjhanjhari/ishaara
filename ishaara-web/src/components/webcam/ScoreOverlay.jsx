@@ -40,9 +40,10 @@ export default function ScoreOverlay({ score = 0, rating, xpEarned = 0, isVisibl
       }
     : rating
 
-  const isSuccess = ratingObj?.key !== 'fail' && (score >= 48 || ['good', 'great', 'perfect'].includes(ratingObj?.key))
-  const ratingColor = ratingObj?.color || (isSuccess ? '#10b981' : '#ef4444')
-  const ratingLabel = ratingObj?.label || (isSuccess ? 'Well Done!' : 'Try Again')
+  // Strictly 75% required across all lessons
+  const isSuccess = score >= 75
+  const ratingColor = ratingObj?.color || (isSuccess ? '#10b981' : (score >= 60 ? '#f59e0b' : '#ef4444'))
+  const ratingLabel = ratingObj?.label || (isSuccess ? 'Well Done!' : (score >= 60 ? 'Almost! (75% needed)' : 'Try Again'))
 
   // Automatic dismiss only on failure to allow seamless retrying
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function ScoreOverlay({ score = 0, rating, xpEarned = 0, isVisibl
       if (!isSuccess) {
         const timer = setTimeout(() => {
           onDismiss()
-        }, 1500)
+        }, 1800)
         return () => clearTimeout(timer)
       }
     }
@@ -134,12 +135,17 @@ export default function ScoreOverlay({ score = 0, rating, xpEarned = 0, isVisibl
             Next Sign →
           </button>
         ) : (
-          <button
-            onClick={onDismiss}
-            className="w-full py-3 px-4 rounded-xl text-sm font-semibold text-text-muted bg-white/5 border border-white/10 hover:bg-white/10 hover:text-text-primary transition-all duration-200 cursor-pointer"
-          >
-            Try Again
-          </button>
+          <div className="space-y-2">
+            <p className="text-[11px] text-amber-300 font-medium">
+              75% match required to advance ({score}% achieved)
+            </p>
+            <button
+              onClick={onDismiss}
+              className="w-full py-3 px-4 rounded-xl text-sm font-semibold text-text-muted bg-white/5 border border-white/10 hover:bg-white/10 hover:text-text-primary transition-all duration-200 cursor-pointer"
+            >
+              Try Again
+            </button>
+          </div>
         )}
       </div>
     </div>

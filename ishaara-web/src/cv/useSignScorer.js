@@ -25,8 +25,7 @@ export function useSignScorer({
   // Dynamic thresholds based on sign type
   const isAlphabet = sign?.category === 'alphabet'
   const HOLD_MS       = isAlphabet ? 250 : 350
-  const SCORE_THRESH  = isAlphabet ? 30  : 28
-  const SUCCESS_THRESH = isAlphabet ? 48  : 42
+  const SUCCESS_THRESH = 75 // Strictly 75% required to move to next sign across all lessons
 
   // Recompute reference vector whenever sign or variant changes
   useEffect(() => {
@@ -44,8 +43,17 @@ export function useSignScorer({
   }, [sign?.id, activeVariant])
 
   const processFrame = useCallback(async (userVector) => {
-    if (signType === 'motion') return
     if (cooldownRef.current) return
+
+    // For motion signs, provide live visual feedback on the meter when hands are tracked
+    if (signType === 'motion') {
+      if (!userVector) {
+        onScoreUpdate?.(0, null)
+      } else {
+        onScoreUpdate?.(65, null)
+      }
+      return
+    }
 
     if (!window._scorerCount) window._scorerCount = 0
     window._scorerCount++
@@ -107,11 +115,11 @@ export function useSignScorer({
 
         let aiScore = 0
         if (aiLabel === targetLabel) {
-          // Exact prediction match: reward generously even with mild lighting/camera variance
-          aiScore = Math.min(100, Math.max(65, Math.round(pred.confidence * 85 + 22)))
+          // Exact prediction match: reward generously to clear the 75% threshold cleanly
+          aiScore = Math.min(100, Math.max(78, Math.round(pred.confidence * 80 + 26)))
         } else if (targetProb >= 0.15) {
           // Strong secondary probability in 26-class distribution
-          aiScore = Math.min(85, Math.round(targetProb * 150))
+          aiScore = Math.min(82, Math.round(targetProb * 140))
         } else {
           // Minor residual for active hand motion
           aiScore = Math.max(0, Math.round((1 - pred.confidence) * 12))
@@ -147,22 +155,20 @@ export function useSignScorer({
 
     onScoreUpdate?.(smoothed, aiLabel)
 
-    // Forgiving hold threshold so camera/lighting variations don't get stuck
-    const threshold = SCORE_THRESH
-
-    // Hold detection — fire once per attempt
-    if (smoothed >= threshold) {
+    // Hold detection
+    // Case A: Passed threshold (>= 75%) held for HOLD_MS -> Success!
+    if (smoothed >= SUCCESS_THRESH) {
       if (!holdStartRef.current) holdStartRef.current = Date.now()
       const elapsed = Date.now() - holdStartRef.current
-      if (isFreq) console.log('[Scorer] holding',
+      if (isFreq) console.log('[Scorer] holding success',
         elapsed, `ms / ${HOLD_MS}ms needed`)
       if (elapsed >= HOLD_MS && !isScoringRef.current) {
         isScoringRef.current = true
         cooldownRef.current  = true
 
         const rating     = getRating(smoothed)
-        const is_success = smoothed >= SUCCESS_THRESH
-        console.log('[Scorer] TRIGGERED score:', smoothed, 'is_success:', is_success)
+        const is_success = true
+        console.log('[Scorer] SUCCESS TRIGGERED score:', smoothed)
 
         onScoreReady?.({ score: smoothed, is_success, rating })
 
@@ -170,13 +176,33 @@ export function useSignScorer({
           scoreWindowRef.current   = []
           holdStartRef.current     = null
           isScoringRef.current     = false
-          if (!is_success) cooldownRef.current = false
+        }, 1200)
+      }
+    } else if (smoothed >= 35) {
+      // Case B: Incomplete hold (35 - 74%) held for extended duration (2000ms)
+      if (!holdStartRef.current) holdStartRef.current = Date.now()
+      const elapsed = Date.now() - holdStartRef.current
+      if (elapsed >= 2000 && !isScoringRef.current) {
+        isScoringRef.current = true
+        cooldownRef.current  = true
+
+        const rating     = getRating(smoothed)
+        const is_success = false
+        console.log('[Scorer] SUB-THRESHOLD TRIGGERED score:', smoothed, '(needs 75% to pass)')
+
+        onScoreReady?.({ score: smoothed, is_success, rating })
+
+        setTimeout(() => {
+          scoreWindowRef.current   = []
+          holdStartRef.current     = null
+          isScoringRef.current     = false
+          cooldownRef.current      = false
         }, 1200)
       }
     } else {
       holdStartRef.current = null
     }
-  }, [sign?.label, activeVariant, signType, isAlphabet, onScoreReady, onScoreUpdate, SCORE_THRESH, SUCCESS_THRESH, HOLD_MS])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sign?.label, activeVariant, signType, isAlphabet, onScoreReady, onScoreUpdate, SUCCESS_THRESH, HOLD_MS])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetScorer = useCallback(() => {
     scoreWindowRef.current   = []

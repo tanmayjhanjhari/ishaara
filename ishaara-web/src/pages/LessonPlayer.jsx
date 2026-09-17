@@ -241,7 +241,7 @@ export default function LessonPlayer() {
       setPendingLevelUp(true)
     }
 
-    if (is_success) {
+    if (is_success && score >= 75) {
       setCompletedSignIds(prev => {
         const next = new Set(prev)
         next.add(currentSign.id)
@@ -259,14 +259,15 @@ export default function LessonPlayer() {
       queryClient.invalidateQueries({ queryKey: ['progress'] })
     }
 
-    setOverlayData({ score, rating, is_success, xpEarned: actualXpEarned })
+    setOverlayData({ score, rating, is_success: (is_success && score >= 75), xpEarned: actualXpEarned })
     setOverlayVisible(true)
     holdPercent.current = 0
     updateRing(ringRef, 0, false)
 
     const tip = getPostAttemptTip(score)
-    setFeedbackTip(is_success ? null : tip)
-    setIsPulsing(!is_success)
+    const hasPassed = is_success && score >= 75
+    setFeedbackTip(hasPassed ? null : tip)
+    setIsPulsing(!hasPassed)
     setTimeout(() => setIsPulsing(false), 3000)
 
     setSignResults(prev => {
@@ -276,13 +277,13 @@ export default function LessonPlayer() {
         updated[idx] = {
           ...updated[idx],
           score:     Math.max(updated[idx].score, score),
-          isSuccess: updated[idx].isSuccess || is_success,
+          isSuccess: updated[idx].isSuccess || hasPassed,
           attempts:  updated[idx].attempts + 1,
           xpEarned:  Math.max(updated[idx].xpEarned || 0, actualXpEarned)
         }
         return updated
       }
-      return [...prev, { sign: currentSign, score, isSuccess: is_success, attempts: 1, xpEarned: actualXpEarned }]
+      return [...prev, { sign: currentSign, score, isSuccess: hasPassed, attempts: 1, xpEarned: actualXpEarned }]
     })
 
     if (attemptResponse?.streak_updated) {
@@ -306,7 +307,7 @@ export default function LessonPlayer() {
 
   const handleMotionSignComplete = useCallback(async () => {
     await handleScoreReady({
-      score: 80,
+      score: 85,
       is_success: true,
       rating: { key: 'great', label: 'Well Done! ✦', color: '#10b981' }
     })
@@ -338,10 +339,10 @@ export default function LessonPlayer() {
     }
   }, [signIndex, signs.length, sessionStore, scorer])
 
-  // Dismiss score overlay
+  // Dismiss score overlay — strictly require 75% to move to next sign
   const handleOverlayDismiss = useCallback(() => {
     setOverlayVisible(false)
-    const isSuccess = overlayData?.is_success || overlayData?.score >= SUCCESS_THRESHOLD || ['good', 'great', 'perfect'].includes(overlayData?.rating?.key)
+    const isSuccess = Boolean(overlayData?.is_success && overlayData?.score >= 75)
     if (isSuccess) {
       if (pendingLevelUp) {
         queryClient.invalidateQueries({ queryKey: ['xp'] })
@@ -349,7 +350,7 @@ export default function LessonPlayer() {
       }
       handleNextSign()
     } else {
-      // Failed — stay in practice mode for retry
+      // Below 75% — stay in practice mode for retry
       scorer.resetScorer()
     }
   }, [overlayData, handleNextSign, scorer, pendingLevelUp, queryClient])

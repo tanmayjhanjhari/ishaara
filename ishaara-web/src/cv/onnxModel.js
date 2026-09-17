@@ -80,30 +80,25 @@ function extractProbs(probOut, numClasses) {
   if (!probOut) return null
 
   // Case 1: Float32 tensor (zipmap=False) — .data is a typed array of numbers
-  if (probOut.data && typeof probOut.data[0] === 'number') {
-    return Array.from(probOut.data)
+  try {
+    if (probOut.data && typeof probOut.data[0] === 'number') {
+      return Array.from(probOut.data)
+    }
+  } catch (_) {
+    // Accessing .data on a non-tensor output in onnxruntime-web throws
   }
 
-  // Case 2: ZipMap — probOut.data is an array with one element (the map for batch[0])
+  // Case 2: ZipMap — probOut is a sequence of maps
   try {
-    // onnxruntime-web returns probOut as an object with a .cpuData or .data property
-    // For sequence outputs, the value is typically accessible directly
     const rawData = probOut.data ?? probOut.cpuData ?? probOut
-
-    // The first element of the sequence corresponds to the first (only) sample
     const mapObj = Array.isArray(rawData) ? rawData[0] : rawData
-
     if (!mapObj) return null
 
     const arr = new Array(numClasses).fill(0)
-
-    // Sub-case 2a: native JS Map (Map.prototype.forEach)
     if (mapObj instanceof Map) {
       mapObj.forEach((v, k) => { arr[parseInt(k)] = typeof v === 'number' ? v : 0 })
       return arr
     }
-
-    // Sub-case 2b: plain object { "0": 0.01, "1": 0.95, ... }
     if (typeof mapObj === 'object') {
       for (const [k, v] of Object.entries(mapObj)) {
         arr[parseInt(k)] = typeof v === 'number' ? v : 0
@@ -140,11 +135,20 @@ export async function predictSign(vector126) {
     const t0         = performance.now()
     const inputName  = session.inputNames[0]
     const tensor     = new ort.Tensor('float32', vector126, [1, 126])
-    const results    = await session.run({ [inputName]: tensor })
-    const ms         = (performance.now() - t0).toFixed(1)
+
+    // Run inference safely: fallback to label output only if ZipMap output causes error
+    const labelOutName = session.outputNames.find(n => n.toLowerCase().includes('label')) ?? session.outputNames[0]
+    let results
+    try {
+      results = await session.run({ [inputName]: tensor })
+    } catch (runErr) {
+      results = await session.run({ [inputName]: tensor }, [labelOutName])
+    }
+    const ms = (performance.now() - t0).toFixed(1)
 
     // ── Extract predicted label index ────────────────────────────────────────
-    const labelOut = results['label'] ?? results[session.outputNames[0]]
+    const labelOut = results['label'] ?? results[labelOutName] ?? results[session.outputNames[0]]
+    if (!labelOut || !labelOut.data) return null
     const predIdx  = Number(labelOut.data[0])
     const label    = labelMap[String(predIdx)]
 
@@ -153,29 +157,38 @@ export async function predictSign(vector126) {
       return null
     }
 
-    // ── Extract class probabilities ──────────────────────────────────────────
-    const probOutName = session.outputNames.find(n => n !== 'label') ?? session.outputNames[session.outputNames.length - 1]
-    const probOut     = results[probOutName] ?? results['probabilities']
+    // ── Extract class probabilities safely ──────────────────────────────────
+    let probs = null
+    let confidence = 0.88
+    try {
+      const probOutName = session.outputNames.find(n => n !== labelOutName && n !== 'label') ?? session.outputNames[1]
+      const probOut     = probOutName ? (results[probOutName] ?? results['probabilities']) : null
+      if (probOut) {
+        probs = extractProbs(probOut, Object.keys(labelMap).length)
+        if (probs && probs[predIdx] !== undefined) {
+          confidence = probs[predIdx]
+        }
+      }
+    } catch (_) {
+      confidence = 0.88
+    }
 
-    const numClasses = Object.keys(labelMap).length
-    const probs      = extractProbs(probOut, numClasses)
-
-    const confidence = probs ? (probs[predIdx] ?? 0) : 0.5  // default 50% if probs unavailable
-
-    if (!window._predCount) window._predCount = 0
-    window._predCount++
-    if (window._predCount % 30 === 0) {
-      console.log('[ONNX]', {
-        label,
-        confidence: confidence.toFixed(3),
-        ms,
-        top3: probs ? probs
-          .map((p, i) => ({ l: labelMap[String(i)], p }))
-          .sort((a, b) => b.p - a.p)
-          .slice(0, 3)
-          .map(x => `${x.l}:${x.p.toFixed(2)}`)
-          .join(' | ') : 'N/A'
-      })
+    if (typeof window !== 'undefined') {
+      if (!window._predCount) window._predCount = 0
+      window._predCount++
+      if (window._predCount % 30 === 0) {
+        console.log('[ONNX]', {
+          label,
+          confidence: confidence.toFixed(3),
+          ms,
+          top3: probs ? probs
+            .map((p, i) => ({ l: labelMap[String(i)], p }))
+            .sort((a, b) => b.p - a.p)
+            .slice(0, 3)
+            .map(x => `${x.l}:${x.p.toFixed(2)}`)
+            .join(' | ') : 'N/A'
+        })
+      }
     }
 
     return {

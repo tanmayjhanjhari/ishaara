@@ -20,8 +20,8 @@ def compute_level(total_xp):
 
 
 def compute_xp_for_attempt(score, base_xp):
-    if score < 50:
-        return 0  # No XP for failed attempts
+    if score < 75:
+        return 0  # No XP for attempts below 75%
     multiplier = score / 100
     return round(base_xp * multiplier)
 

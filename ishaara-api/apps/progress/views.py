@@ -47,7 +47,8 @@ class AttemptCreateView(APIView):
                 sp.attempts += 1
                 if data['score'] > sp.best_score:
                     sp.best_score = data['score']
-                if data['is_success'] and not sp.is_completed:
+                is_passed = data['is_success'] and data['score'] >= 75
+                if is_passed and not sp.is_completed:
                     sp.is_completed = True
                     sp.completed_at = timezone.now()
                 sp.save()
