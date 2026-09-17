@@ -10,6 +10,14 @@
 
 import * as ort from 'onnxruntime-web'
 
+// Configure WASM runtime paths and execution for production web compatibility
+try {
+  ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/'
+  ort.env.wasm.numThreads = 1
+} catch (e) {
+  console.warn('[ONNX] Error setting up ort.env.wasm:', e)
+}
+
 let session        = null
 let labelMap       = null
 let isInitializing = false

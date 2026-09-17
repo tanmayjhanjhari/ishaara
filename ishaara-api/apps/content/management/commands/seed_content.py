@@ -36,22 +36,37 @@ class Command(BaseCommand):
     help = 'Seed initial ISL alphabet content'
 
     def handle(self, *args, **kwargs):
+        import os, json
+        data_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'alphabet_landmarks.json')
+        alphabet_lms = {}
+        if os.path.exists(data_path):
+            with open(data_path, encoding='utf-8') as f:
+                alphabet_lms = json.load(f)
+
         signs = []
         for index, letter in enumerate(string.ascii_uppercase):
+            ref_lms = alphabet_lms.get(letter)
             sign, created = Sign.objects.get_or_create(
                 slug=f'sign-{letter.lower()}',
                 defaults={
-                    'label':       letter,
-                    'description': ISL_INSTRUCTIONS.get(letter, ''),
-                    'category':    'alphabet',
-                    'difficulty':  1,
-                    'xp_reward':   10,
+                    'label':               letter,
+                    'description':         ISL_INSTRUCTIONS.get(letter, ''),
+                    'category':            'alphabet',
+                    'difficulty':          1,
+                    'xp_reward':           10,
+                    'reference_landmarks': ref_lms,
                 }
             )
-            # Always update description on existing records to keep in sync with ISL_INSTRUCTIONS
+            # Update description and reference_landmarks if missing
+            updated_fields = []
             if letter in ISL_INSTRUCTIONS and sign.description != ISL_INSTRUCTIONS[letter]:
                 sign.description = ISL_INSTRUCTIONS[letter]
-                sign.save(update_fields=['description'])
+                updated_fields.append('description')
+            if ref_lms and not sign.reference_landmarks:
+                sign.reference_landmarks = ref_lms
+                updated_fields.append('reference_landmarks')
+            if updated_fields:
+                sign.save(update_fields=updated_fields)
 
             signs.append(sign)
             status = 'created' if created else 'exists'

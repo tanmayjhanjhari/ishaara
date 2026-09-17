@@ -4,6 +4,7 @@ import {
   SMOOTH_WINDOW
 } from './scoring'
 import { predictSign, isModelReady, getLabelMap } from './onnxModel'
+import { REFERENCE_LANDMARKS } from '../data/referenceLandmarks'
 
 // Minimum ms between inference calls — prevents flooding the WASM runtime
 const INFERENCE_INTERVAL_MS = 80
@@ -23,15 +24,19 @@ export function useSignScorer({
   const lastInferenceRef = useRef(0)
 
   // Dynamic thresholds based on sign type
-  const isAlphabet = sign?.category === 'alphabet'
+  const isAlphabet = sign?.category === 'alphabet' || (!sign?.category && sign?.label?.length === 1)
   const HOLD_MS       = isAlphabet ? 250 : 350
   const SUCCESS_THRESH = 75 // Strictly 75% required to move to next sign across all lessons
 
   // Recompute reference vector whenever sign or variant changes
   useEffect(() => {
     let ref = sign?.reference_landmarks
-    if (sign && (sign.label === 'I' || sign.label === 'U' || sign.label === 'Z')) {
+    const label = sign?.label?.toUpperCase()
+
+    if (sign && (label === 'I' || label === 'U' || label === 'Z')) {
       ref = getVariantLandmarks(sign.label, activeVariant)
+    } else if (!ref && label && REFERENCE_LANDMARKS[label]) {
+      ref = REFERENCE_LANDMARKS[label]
     }
 
     referenceRef.current   = ref ? normalizeReference(ref) : null
@@ -40,7 +45,7 @@ export function useSignScorer({
     isScoringRef.current   = false
     cooldownRef.current    = false
     lastInferenceRef.current = 0
-  }, [sign?.id, activeVariant])
+  }, [sign?.id, sign?.label, sign?.reference_landmarks, activeVariant])
 
   const processFrame = useCallback(async (userVector) => {
     if (cooldownRef.current) return
@@ -97,6 +102,11 @@ export function useSignScorer({
     for (let i = 0; i < 63; i++)  if (processedVector[i] !== 0) { userLeftActive  = true; break }
     for (let i = 63; i < 126; i++) if (processedVector[i] !== 0) { userRightActive = true; break }
     const userHands = (userLeftActive ? 1 : 0) + (userRightActive ? 1 : 0)
+
+    // Fallback if referenceRef is not yet initialized
+    if (!referenceRef.current && targetLabel && REFERENCE_LANDMARKS[targetLabel]) {
+      referenceRef.current = normalizeReference(REFERENCE_LANDMARKS[targetLabel])
+    }
 
     // Detect reference hands requirement
     let refLeftActive = false, refRightActive = false
