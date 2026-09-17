@@ -1,10 +1,15 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
 
+const rawBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Strip trailing slash if present so endpoints like /api/v1/ always join cleanly
+export const API_BASE_URL = rawBaseURL.replace(/\/+$/, '')
+
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 })
+
 
 // ── Request interceptor: attach JWT ──────────────────────────────────────────
 client.interceptors.request.use((config) => {
@@ -59,7 +64,7 @@ client.interceptors.response.use(
 
       try {
         const response = await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/v1/auth/refresh/`,
+          `${API_BASE_URL}/api/v1/auth/refresh/`,
           { refresh: refreshToken }
         )
         const newToken = response.data.access
